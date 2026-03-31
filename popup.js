@@ -6,18 +6,86 @@ let state = {
   active: null
 };
 
+let session = null;
+let isOnlineMode = false;
 let draggedItem = null;
 let draggedIndex = -1;
 
 document.addEventListener("DOMContentLoaded", async () => {
-  await loadState();
+  session = await getSession();
+  
+  if (session) {
+    await initApp();
+  } else {
+    showLoginScreen();
+  }
+});
 
+function showLoginScreen() {
+  document.getElementById("loginScreen").style.display = "flex";
+  document.getElementById("mainApp").style.display = "none";
+  
+  document.getElementById("loginBtn").onclick = handleLogin;
+  document.getElementById("loginPassword").addEventListener("keypress", (e) => {
+    if (e.key === "Enter") handleLogin();
+  });
+  document.getElementById("loginStore").focus();
+}
+
+async function handleLogin() {
+  const storeInput = document.getElementById("loginStore");
+  const passwordInput = document.getElementById("loginPassword");
+  const errorEl = document.getElementById("loginError");
+  const btn = document.getElementById("loginBtn");
+  
+  const storeNumber = storeInput.value.trim();
+  const password = passwordInput.value;
+  
+  if (!storeNumber || !password) {
+    errorEl.textContent = "Please enter store number and password";
+    return;
+  }
+  
+  btn.disabled = true;
+  btn.textContent = "Logging in...";
+  errorEl.textContent = "";
+  
+  try {
+    session = await login(storeNumber, password);
+    await initApp();
+  } catch (err) {
+    errorEl.textContent = err.message;
+    btn.disabled = false;
+    btn.textContent = "Login";
+  }
+}
+
+async function initApp() {
+  document.getElementById("loginScreen").style.display = "none";
+  document.getElementById("mainApp").style.display = "flex";
+  document.getElementById("storeLabel").textContent = session.storeNumber;
+  
+  await loadState();
+  setupEventListeners();
+  updateSyncStatus();
+  
+  if (isOnlineMode) {
+    try {
+      const remoteState = await syncFromRemote(session);
+      state = remoteState;
+      saveState();
+      render();
+    } catch (err) {
+      console.log("Sync failed, using local data:", err);
+    }
+  }
+  
   if (state.categoryOrder.length === 0) {
     createCategory("Default");
   }
-
+  
   render();
-});
+}
 
 async function loadState() {
   if (!chrome.storage || !chrome.storage.local) {
@@ -32,6 +100,8 @@ async function loadState() {
     state.categories = saved.categories || {};
     state.active = saved.active || null;
   }
+  
+  isOnlineMode = await isOnline();
 }
 
 function saveState() {
@@ -44,6 +114,33 @@ function saveState() {
   });
 }
 
+async function saveAndSync() {
+  saveState();
+  
+  if (isOnlineMode && session) {
+    updateSyncStatus("syncing");
+    try {
+      await syncToRemote(session, state);
+      updateSyncStatus("online");
+    } catch (err) {
+      console.error("Sync failed:", err);
+      updateSyncStatus("offline");
+    }
+  }
+}
+
+function updateSyncStatus(status) {
+  const el = document.getElementById("syncStatus");
+  if (status) {
+    el.className = "sync-status " + status;
+    el.title = status === "online" ? "Connected" : 
+               status === "offline" ? "Offline" : "Syncing...";
+  } else {
+    el.className = "sync-status " + (isOnlineMode ? "online" : "offline");
+    el.title = isOnlineMode ? "Connected" : "Offline";
+  }
+}
+
 function createCategory(name) {
   if (!name) return;
   if (state.categories[name]) return;
@@ -51,7 +148,7 @@ function createCategory(name) {
   state.categories[name] = [];
   state.categoryOrder.push(name);
   state.active = name;
-  saveState();
+  saveAndSync();
   render();
 }
 
@@ -61,7 +158,7 @@ function deleteCategory(name) {
   delete state.categories[name];
   state.categoryOrder = state.categoryOrder.filter(n => n !== name);
   state.active = state.categoryOrder[0] || null;
-  saveState();
+  saveAndSync();
   render();
 }
 
@@ -72,7 +169,7 @@ function renameCategory(oldName, newName) {
   delete state.categories[oldName];
   state.categoryOrder = state.categoryOrder.map(n => n === oldName ? newName : n);
   state.active = newName;
-  saveState();
+  saveAndSync();
   render();
 }
 
@@ -90,14 +187,14 @@ function addBarcode(value) {
   }
 
   list.push(value);
-  saveState();
+  saveAndSync();
   render();
 }
 
 function removeBarcode(value) {
   const list = state.categories[state.active];
   state.categories[state.active] = list.filter(v => v !== value);
-  saveState();
+  saveAndSync();
   render();
 }
 
@@ -179,7 +276,7 @@ function handleDrop(e) {
     const [movedItem] = state.categoryOrder.splice(draggedIndex, 1);
     state.categoryOrder.splice(dropIndex, 0, movedItem);
     
-    saveState();
+    saveAndSync();
     renderCategories();
   }
   return false;
@@ -241,7 +338,7 @@ function renderBarcodes() {
   });
 }
 
-document.addEventListener("DOMContentLoaded", () => {
+function setupEventListeners() {
   document.getElementById("addCategoryBtn").onclick = () => {
     const name = prompt("Category name:");
     createCategory(name);
@@ -267,7 +364,14 @@ document.addEventListener("DOMContentLoaded", () => {
       document.getElementById("addBarcodeBtn").click();
     }
   });
-});
+
+  document.getElementById("logoutBtn").onclick = async () => {
+    if (!confirm("Logout? Your local data will remain.")) return;
+    await logout();
+    session = null;
+    showLoginScreen();
+  };
+}
 
 function showToast(msg) {
   const toast = document.getElementById("toast");

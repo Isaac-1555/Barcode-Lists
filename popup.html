@@ -6,11 +6,32 @@
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
-  <div class="container">
+  <div id="loginScreen" class="login-screen">
+    <div class="login-box">
+      <h2>Barcode Lists</h2>
+      <div class="login-form">
+        <input type="text" id="loginStore" placeholder="Store number (e.g., FMC07)" autocomplete="off" />
+        <input type="password" id="loginPassword" placeholder="Password (e.g., fmc07)" />
+        <button id="loginBtn">Login</button>
+      </div>
+      <p id="loginError" class="login-error"></p>
+      <p class="login-hint">New stores will be created automatically</p>
+    </div>
+  </div>
+
+  <div id="mainApp" class="container" style="display: none;">
     <div class="sidebar">
       <div class="sidebar-header">
-        <span>Categories</span>
-        <span id="addCategoryBtn" class="icon-btn"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="5" y2="19"/><line x1="5" x2="19" y1="12" y2="12"/></svg></span>
+        <span id="storeLabel">Store</span>
+        <div class="sidebar-actions">
+          <span id="syncStatus" class="sync-status" title="Sync status"></span>
+          <span id="logoutBtn" class="icon-btn" title="Logout">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
+          </span>
+          <span id="addCategoryBtn" class="icon-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="5" y2="19"/><line x1="5" x2="19" y1="12" y2="12"/></svg>
+          </span>
+        </div>
       </div>
       <ul id="categoryList"></ul>
     </div>
@@ -37,6 +58,7 @@
 
   <div id="toast"></div>
 
+  <script src="supabase.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

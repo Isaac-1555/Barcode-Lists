@@ -1,9 +1,10 @@
 {
   "manifest_version": 3,
   "name": "Barcode Lists",
-  "version": "1.0",
+  "version": "1.1",
   "description": "Store and manage barcode lists",
   "permissions": ["storage", "sidePanel"],
+  "host_permissions": ["https://*.supabase.co"],
   "background": {
     "service_worker": "background.js"
   },

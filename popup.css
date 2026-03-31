@@ -190,7 +190,7 @@ body {
 
 .input-row button {
   height: 36px;
-  width: 126px;
+  width: 60px;
   padding: 0;
   border-radius: 6px;
   border: none;
@@ -286,4 +286,123 @@ body {
 #toast.show {
   opacity: 1;
   transform: translateX(-50%) translateY(-5px);
+}
+
+.login-screen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #18181b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.login-box {
+  background: #111113;
+  border: 1px solid #2a2a2e;
+  border-radius: 12px;
+  padding: 32px;
+  width: 300px;
+  text-align: center;
+}
+
+.login-box h2 {
+  margin: 0 0 24px 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #e4e4e7;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.login-form input {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #2a2a2e;
+  background: #18181b;
+  color: white;
+  font-size: 14px;
+  text-align: center;
+}
+
+.login-form input::placeholder {
+  color: #71717a;
+}
+
+.login-form input:focus {
+  outline: none;
+  border-color: #3f3f46;
+}
+
+.login-form button {
+  padding: 10px;
+  border-radius: 8px;
+  border: none;
+  background: #3f3f46;
+  color: white;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.login-form button:hover {
+  background: #52525b;
+}
+
+.login-form button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.login-error {
+  color: #f87171;
+  font-size: 12px;
+  margin: 12px 0 0 0;
+  min-height: 16px;
+}
+
+.login-hint {
+  color: #71717a;
+  font-size: 11px;
+  margin: 8px 0 0 0;
+}
+
+.sidebar-actions {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.sync-status {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #71717a;
+}
+
+.sync-status.online {
+  background: #22c55e;
+}
+
+.sync-status.offline {
+  background: #f87171;
+}
+
+.sync-status.syncing {
+  background: #eab308;
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
 }
