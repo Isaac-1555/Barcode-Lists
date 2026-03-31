@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Barcode Lists</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <div class="sidebar">
+      <div class="sidebar-header">
+        <span>Categories</span>
+        <span id="addCategoryBtn" class="icon-btn"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="5" y2="19"/><line x1="5" x2="19" y1="12" y2="12"/></svg></span>
+      </div>
+      <ul id="categoryList"></ul>
+    </div>
+
+    <div class="main">
+      <div class="main-header">
+        <div class="header-row">
+          <input id="categoryName" />
+          <div class="header-buttons">
+            <button id="renameCategoryBtn">Rename</button>
+            <button id="deleteCategoryBtn">Delete</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="input-row">
+        <input id="barcodeInput" placeholder="Enter barcode..." />
+        <button id="addBarcodeBtn">Add</button>
+      </div>
+
+      <ul id="barcodeList"></ul>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

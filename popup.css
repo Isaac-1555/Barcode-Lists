@@ -1,0 +1,289 @@
+body {
+  margin: 0;
+  padding: 0;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  background: #18181b;
+  color: #e4e4e7;
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+.container {
+  display: flex;
+  height: 100vh;
+  width: 100%;
+  overflow: hidden;
+}
+
+.sidebar {
+  min-width: 100px;
+  max-width: 200px;
+  width: auto;
+  background: #111113;
+  border-right: 1px solid #2a2a2e;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.sidebar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #a1a1aa;
+  flex-shrink: 0;
+}
+
+.sidebar-header .icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: #27272a;
+  color: #a1a1aa;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+  flex-shrink: 0;
+}
+
+.sidebar-header .icon-btn:hover {
+  background: #3f3f46;
+  color: #e4e4e7;
+}
+
+#categoryList {
+  list-style: none;
+  padding: 6px;
+  margin: 0;
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+#categoryList li {
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  color: #d4d4d8;
+  transition: background 0.2s;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#categoryList li:hover {
+  background: #27272a;
+}
+
+#categoryList li.active {
+  background: #3f3f46;
+  color: white;
+}
+
+#categoryList li.over {
+  border-top: 2px solid #3f3f46;
+}
+
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+  gap: 10px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.main-header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.header-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.main-header input {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid #333;
+  padding: 4px;
+  font-size: 14px;
+  color: white;
+}
+
+.header-buttons {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.header-buttons button {
+  height: 30px;
+  width: 60px;
+  padding: 0;
+  border-radius: 6px;
+  border: none;
+  background: #27272a;
+  color: #e4e4e7;
+  cursor: pointer;
+  font-size: 11px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.header-buttons button:hover {
+  background: #3f3f46;
+}
+
+#deleteCategoryBtn {
+  background: #3b1f1f;
+}
+
+#deleteCategoryBtn:hover {
+  background: #7f1d1d;
+}
+
+.input-row {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.input-row input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid #2a2a2e;
+  background: #111113;
+  color: white;
+  font-size: 13px;
+}
+
+.input-row input::placeholder {
+  color: #71717a;
+}
+
+.input-row button {
+  height: 36px;
+  width: 126px;
+  padding: 0;
+  border-radius: 6px;
+  border: none;
+  background: #27272a;
+  color: #e4e4e7;
+  cursor: pointer;
+  font-size: 12px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.input-row button:hover {
+  background: #3f3f46;
+}
+
+#barcodeList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+#barcodeList li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 10px;
+  margin-bottom: 6px;
+  border-radius: 8px;
+  background: #111113;
+  border: 1px solid #2a2a2e;
+  font-size: 13px;
+  transition: background 0.2s;
+}
+
+#barcodeList li span {
+  user-select: none;
+}
+
+#barcodeList li div {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+#barcodeList li div span {
+  opacity: 0.7;
+  transition: opacity 0.2s, transform 0.1s;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+#barcodeList li div span:hover {
+  opacity: 1;
+  transform: scale(1.1);
+}
+
+#barcodeList li:hover {
+  background: #1f1f23;
+}
+
+.delete-btn svg {
+  stroke: #f87171;
+}
+
+.copy-icon {
+  stroke: #a1a1aa;
+}
+
+.delete-icon {
+  stroke: #f87171;
+}
+
+#toast {
+  position: fixed;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #27272a;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  opacity: 0;
+  transition: opacity 0.3s, transform 0.3s;
+  z-index: 100;
+}
+
+#toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(-5px);
+}
