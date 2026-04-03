@@ -10,6 +10,8 @@ let session = null;
 let isOnlineMode = false;
 let draggedItem = null;
 let draggedIndex = -1;
+let pendingExtraction = [];
+let selectedForExtraction = [];
 
 document.addEventListener("DOMContentLoaded", async () => {
   session = await getSession();
@@ -371,6 +373,28 @@ function setupEventListeners() {
     session = null;
     showLoginScreen();
   };
+
+  document.getElementById("uploadBtn").onclick = () => {
+    document.getElementById("fileInput").click();
+  };
+
+  document.getElementById("fileInput").onchange = handleFileUpload;
+
+  document.getElementById("settingsBtn").onclick = showSettingsModal;
+
+  document.getElementById("closeReviewModal").onclick = closeReviewModal;
+  document.getElementById("cancelReviewBtn").onclick = closeReviewModal;
+  document.getElementById("selectAllBtn").onclick = () => selectAllItems(true);
+  document.getElementById("deselectAllBtn").onclick = () => selectAllItems(false);
+  document.getElementById("addSelectedBtn").onclick = addSelectedBarcodes;
+
+  document.getElementById("closeSettingsModal").onclick = closeSettingsModal;
+  document.getElementById("cancelSettingsBtn").onclick = closeSettingsModal;
+  document.getElementById("saveSettingsBtn").onclick = saveSettings;
+  document.getElementById("openrouterLink").onclick = (e) => {
+    e.preventDefault();
+    chrome.tabs.create({ url: "https://openrouter.ai/" });
+  };
 }
 
 function showToast(msg) {
@@ -381,4 +405,313 @@ function showToast(msg) {
   setTimeout(() => {
     toast.classList.remove("show");
   }, 1500);
+}
+
+async function handleFileUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const extension = file.name.split(".").pop().toLowerCase();
+
+  if (["xlsx", "xls"].includes(extension)) {
+    await processExcelFile(file);
+  } else if (["png", "jpg", "jpeg", "gif", "bmp", "webp"].includes(extension)) {
+    await processImageFile(file);
+  } else {
+    showToast("Unsupported file type");
+  }
+
+  event.target.value = "";
+}
+
+async function processExcelFile(file) {
+  showToast("Processing Excel...");
+
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const data = new Uint8Array(arrayBuffer);
+    
+    const workbook = XLSX.read(data, { type: "array" });
+    const results = [];
+
+    for (const sheetName of workbook.SheetNames) {
+      const sheet = workbook.Sheets[sheetName];
+      if (!sheet || !sheet["!ref"]) continue;
+
+      const range = XLSX.utils.decode_range(sheet["!ref"]);
+      const headers = [];
+      const hasHeaders = range.e.r >= 0 && range.e.c >= 0;
+
+      if (hasHeaders) {
+        for (let col = range.s.c; col <= range.e.c; col++) {
+          const cell = sheet[XLSX.utils.encode_cell({ r: range.s.r, c: col })];
+          const headerVal = cell?.v ? String(cell.v).trim() : `Column ${col + 1}`;
+          headers.push(headerVal);
+        }
+      }
+
+      const hasHeaderRow = headers.some(h => h && !/^\d{3,}$/.test(h));
+
+      if (hasHeaderRow && headers.length > 0) {
+        for (let col = range.s.c; col <= range.e.c; col++) {
+          const colBarcodes = [];
+          const headerName = headers[col - range.s.c];
+
+          for (let row = range.s.r + 1; row <= range.e.r; row++) {
+            const cell = sheet[XLSX.utils.encode_cell({ r: row, c: col })];
+            if (cell && cell.v !== undefined && cell.v !== null) {
+              const val = String(cell.v).trim();
+              if (/^\d{3,}$/.test(val)) {
+                colBarcodes.push(val);
+              }
+            }
+          }
+
+          if (colBarcodes.length > 0) {
+            results.push({
+              tableName: headerName,
+              barcodes: [...new Set(colBarcodes)]
+            });
+          }
+        }
+      } else {
+        const barcodes = [];
+        for (let row = range.s.r; row <= range.e.r; row++) {
+          for (let col = range.s.c; col <= range.e.c; col++) {
+            const cell = sheet[XLSX.utils.encode_cell({ r: row, c: col })];
+            if (cell && cell.v) {
+              const val = String(cell.v).trim();
+              if (/^\d{3,}$/.test(val)) {
+                barcodes.push(val);
+              }
+            }
+          }
+        }
+
+        if (barcodes.length > 0) {
+          results.push({
+            tableName: sheetName,
+            barcodes: [...new Set(barcodes)]
+          });
+        }
+      }
+    }
+
+    if (results.length === 0) {
+      showToast("No barcodes found");
+      return;
+    }
+
+    pendingExtraction = results;
+    showReviewModal();
+
+  } catch (err) {
+    console.error("Excel processing error:", err);
+    showToast("Error processing file");
+  }
+}
+
+async function processImageFile(file) {
+  showToast("Analyzing image...");
+
+  try {
+    const base64 = await fileToBase64(file);
+    const mimeType = file.type || "image/png";
+    const barcodes = await extractBarcodesFromImage(base64, mimeType);
+
+    if (barcodes.length === 0) {
+      showToast("No barcodes found");
+      return;
+    }
+
+    pendingExtraction = [{
+      tableName: file.name.replace(/\.[^.]+$/, ""),
+      barcodes: barcodes
+    }];
+    showReviewModal();
+
+  } catch (err) {
+    console.error("Image processing error:", err);
+    showToast(err.message || "Error processing image");
+  }
+}
+
+function showReviewModal() {
+  const modal = document.getElementById("reviewModal");
+  const content = document.getElementById("reviewContent");
+  content.innerHTML = "";
+
+  selectedForExtraction = [];
+
+  pendingExtraction.forEach((group, groupIndex) => {
+    const groupDiv = document.createElement("div");
+    groupDiv.className = "table-group";
+
+    const nameDiv = document.createElement("div");
+    nameDiv.className = "table-name";
+    nameDiv.textContent = group.tableName;
+    groupDiv.appendChild(nameDiv);
+
+    group.barcodes.forEach((barcode, barcodeIndex) => {
+      const index = selectedForExtraction.length;
+      selectedForExtraction.push({ selected: true, groupIndex, barcode, tableName: group.tableName });
+
+      const existingCategories = Object.values(state.categories);
+      const isDuplicate = existingCategories.some(cat => cat.includes(barcode));
+      const isInCurrentCategory = state.categories[state.active]?.includes(barcode);
+
+      const itemDiv = document.createElement("div");
+      itemDiv.className = "barcode-item";
+
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.checked = true;
+      checkbox.dataset.index = index;
+      checkbox.onchange = (e) => {
+        selectedForExtraction[index].selected = e.target.checked;
+      };
+
+      const valueSpan = document.createElement("span");
+      valueSpan.className = "barcode-value";
+      valueSpan.textContent = barcode;
+
+      itemDiv.appendChild(checkbox);
+      itemDiv.appendChild(valueSpan);
+
+      if (isDuplicate || isInCurrentCategory) {
+        const badge = document.createElement("span");
+        badge.className = "duplicate-badge";
+        badge.textContent = isInCurrentCategory ? "Already in list" : "Exists";
+        itemDiv.appendChild(badge);
+      }
+
+      groupDiv.appendChild(itemDiv);
+    });
+
+    content.appendChild(groupDiv);
+  });
+
+  modal.style.display = "flex";
+}
+
+function closeReviewModal() {
+  document.getElementById("reviewModal").style.display = "none";
+  pendingExtraction = [];
+  selectedForExtraction = [];
+}
+
+function selectAllItems(select) {
+  selectedForExtraction.forEach((item, index) => {
+    item.selected = select;
+    const checkbox = document.querySelector(`input[data-index="${index}"]`);
+    if (checkbox) checkbox.checked = select;
+  });
+}
+
+function addSelectedBarcodes() {
+  const toAdd = [];
+  const categoriesToCreate = [];
+
+  selectedForExtraction.forEach((item) => {
+    if (!item.selected) return;
+
+    const existingInCategory = state.categories[state.active]?.includes(item.barcode);
+    if (existingInCategory) return;
+
+    const existingAnywhere = Object.values(state.categories).some(cat => cat.includes(item.barcode));
+    if (!existingAnywhere) {
+      toAdd.push(item);
+    }
+  });
+
+  if (toAdd.length === 0) {
+    showToast("No new barcodes to add");
+    closeReviewModal();
+    return;
+  }
+
+  const grouped = {};
+  toAdd.forEach((item) => {
+    if (!grouped[item.tableName]) {
+      grouped[item.tableName] = [];
+    }
+    grouped[item.tableName].push(item.barcode);
+  });
+
+  Object.entries(grouped).forEach(([tableName, barcodes]) => {
+    if (!state.categories[tableName]) {
+      categoriesToCreate.push(tableName);
+      state.categories[tableName] = [];
+      state.categoryOrder.push(tableName);
+    }
+    state.categories[tableName].push(...barcodes);
+  });
+
+  if (state.active && !categoriesToCreate.includes(state.active)) {
+    if (categoriesToCreate.length > 0) {
+      state.active = categoriesToCreate[0];
+    }
+  } else if (categoriesToCreate.length > 0) {
+    state.active = categoriesToCreate[0];
+  }
+
+  saveAndSync();
+  closeReviewModal();
+  render();
+  showToast(`Added ${toAdd.length} barcode(s)`);
+}
+
+function showSettingsModal() {
+  const modal = document.getElementById("settingsModal");
+  const apiKeyInput = document.getElementById("apiKeyInput");
+  const statusEl = document.getElementById("apiKeyStatus");
+
+  getOpenRouterApiKey().then((key) => {
+    apiKeyInput.value = key || "";
+    statusEl.textContent = "";
+    statusEl.className = "api-key-status";
+  });
+
+  modal.style.display = "flex";
+}
+
+function closeSettingsModal() {
+  document.getElementById("settingsModal").style.display = "none";
+}
+
+async function saveSettings() {
+  const apiKeyInput = document.getElementById("apiKeyInput");
+  const statusEl = document.getElementById("apiKeyStatus");
+  const apiKey = apiKeyInput.value.trim();
+
+  statusEl.innerHTML = '<span class="loading-spinner"></span> Testing...';
+  statusEl.className = "api-key-status";
+
+  if (apiKey) {
+    try {
+      const testResponse = await fetch("https://openrouter.ai/api/v1/models", {
+        headers: {
+          "Authorization": `Bearer ${apiKey}`
+        }
+      });
+
+      if (testResponse.ok) {
+        await setOpenRouterApiKey(apiKey);
+        statusEl.textContent = "API key saved successfully!";
+        statusEl.className = "api-key-status success";
+        setTimeout(closeSettingsModal, 1000);
+      } else {
+        statusEl.textContent = "Invalid API key";
+        statusEl.className = "api-key-status error";
+      }
+    } catch (err) {
+      statusEl.textContent = "Error testing API key";
+      statusEl.className = "api-key-status error";
+    }
+  } else {
+    await setOpenRouterApiKey("");
+    statusEl.textContent = "API key cleared";
+    statusEl.className = "api-key-status success";
+    setTimeout(closeSettingsModal, 1000);
+  }
 }

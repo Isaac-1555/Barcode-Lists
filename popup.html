@@ -50,6 +50,12 @@
       <div class="input-row">
         <input id="barcodeInput" placeholder="Enter barcode..." />
         <button id="addBarcodeBtn">Add</button>
+        <button id="uploadBtn" class="upload-btn" title="Upload Excel or Image">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+        </button>
+        <button id="settingsBtn" class="settings-btn" title="Settings">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 6v10M4.22 4.22l4.24 4.24m7.08 7.08l4.24 4.24M1 12h6m6 0h10M4.22 19.78l4.24-4.24m7.08-7.08l4.24-4.24"/></svg>
+        </button>
       </div>
 
       <ul id="barcodeList"></ul>
@@ -58,6 +64,47 @@
 
   <div id="toast"></div>
 
+  <div id="reviewModal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Review Extracted Barcodes</h3>
+        <span id="closeReviewModal" class="modal-close">&times;</span>
+      </div>
+      <div id="reviewContent" class="modal-body"></div>
+      <div class="modal-footer">
+        <button id="selectAllBtn">Select All</button>
+        <button id="deselectAllBtn">Deselect All</button>
+        <div class="modal-actions">
+          <button id="cancelReviewBtn" class="cancel-btn">Cancel</button>
+          <button id="addSelectedBtn" class="add-btn">Add Selected</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="settingsModal" class="modal" style="display: none;">
+    <div class="modal-content settings-modal">
+      <div class="modal-header">
+        <h3>Settings</h3>
+        <span id="closeSettingsModal" class="modal-close">&times;</span>
+      </div>
+      <div class="modal-body">
+        <label class="settings-label">OpenRouter API Key</label>
+        <input type="password" id="apiKeyInput" placeholder="sk-or-v1-..." class="settings-input" />
+        <p class="settings-hint">Get your free API key from <a href="#" id="openrouterLink">openrouter.ai</a></p>
+        <div id="apiKeyStatus" class="api-key-status"></div>
+      </div>
+      <div class="modal-footer">
+        <button id="saveSettingsBtn" class="add-btn">Save</button>
+        <button id="cancelSettingsBtn" class="cancel-btn">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <input type="file" id="fileInput" accept=".xlsx,.xls,.png,.jpg,.jpeg,.gif,.bmp,.webp" style="display: none;" />
+
+  <script src="xlsx.full.min.js"></script>
+  <script src="openrouter.js"></script>
   <script src="supabase.js"></script>
   <script src="popup.js"></script>
 </body>
