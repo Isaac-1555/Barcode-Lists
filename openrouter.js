@@ -31,7 +31,7 @@ async function extractBarcodesFromImage(imageData, mimeType) {
       "X-Title": "Barcode Lists Extension"
     },
     body: JSON.stringify({
-      model: "nvidia/llama-3.1-nemotron-nano-12b-instruct",
+      model: "qwen/qwen3.6-plus:free",
       messages: [
         {
           role: "user",
@@ -83,6 +83,70 @@ Rules:
     .split("\n")
     .map(line => line.trim())
     .filter(line => /^\d{3,}$/.test(line));
+
+  return [...new Set(barcodes)];
+}
+
+async function extractBarcodesFromExcelText(rawValues) {
+  const apiKey = await getOpenRouterApiKey();
+  if (!apiKey) {
+    throw new Error("OpenRouter API key not configured. Please add it in Settings.");
+  }
+
+  const numberedList = rawValues.map((v, i) => `${i + 1}. ${v}`).join("\n");
+
+  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+      "HTTP-Referer": chrome.runtime.getURL(""),
+      "X-Title": "Barcode Lists Extension"
+    },
+    body: JSON.stringify({
+      model: "qwen/qwen3.6-plus:free",
+      messages: [
+        {
+          role: "user",
+          content: `You are an expert at reading UPC/barcode numbers from spreadsheet data.
+
+Below is a list of raw values from a spreadsheet UPC column. These values may contain spaces, dashes, or other formatting.
+
+For each value:
+1. Remove ALL spaces, dashes, and non-numeric characters
+2. Return the full cleaned number with ALL digits intact
+
+Rules:
+- Return EXACTLY one cleaned number per line, in the same order as the input
+- Do NOT include any explanation, numbering, labels, or text other than the numbers
+- If a value does not contain a valid barcode (less than 5 digits after cleaning), skip it entirely
+- Do NOT return empty lines
+- Return ONLY the numeric results, nothing else
+
+Raw values:
+${numberedList}`
+        }
+      ],
+      max_tokens: 2000,
+      temperature: 0.1
+    })
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    if (response.status === 401) {
+      throw new Error("Invalid API key. Please check your OpenRouter API key in Settings.");
+    }
+    throw new Error(`API Error: ${response.status} - ${errorData.error?.message || response.statusText}`);
+  }
+
+  const data = await response.json();
+  const content = data.choices?.[0]?.message?.content || "";
+
+  const barcodes = content
+    .split("\n")
+    .map(line => line.trim())
+    .filter(line => /^\d{4,}$/.test(line));
 
   return [...new Set(barcodes)];
 }

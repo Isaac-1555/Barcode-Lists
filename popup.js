@@ -403,6 +403,17 @@ function showToast(msg) {
   }, 1500);
 }
 
+function showLoadingOverlay(msg) {
+  const overlay = document.getElementById("loadingOverlay");
+  const message = document.getElementById("loadingMessage");
+  message.textContent = msg || "Processing...";
+  overlay.style.display = "flex";
+}
+
+function hideLoadingOverlay() {
+  document.getElementById("loadingOverlay").style.display = "none";
+}
+
 async function handleFileUpload(event) {
   const file = event.target.files[0];
   if (!file) return;
@@ -420,6 +431,12 @@ async function handleFileUpload(event) {
   event.target.value = "";
 }
 
+function isBarcodeLike(val) {
+  if (/^\d{3,}$/.test(val)) return "clean";
+  if (/^[\d\s\-]{5,}$/.test(val) && (val.replace(/[^\d]/g, "").length >= 5)) return "raw";
+  return false;
+}
+
 async function processExcelFile(file) {
   showToast("Processing Excel...");
 
@@ -429,6 +446,9 @@ async function processExcelFile(file) {
     
     const workbook = XLSX.read(data, { type: "array" });
     const results = [];
+    let needsAI = false;
+
+    const allRawBySheet = [];
 
     for (const sheetName of workbook.SheetNames) {
       const sheet = workbook.Sheets[sheetName];
@@ -450,47 +470,80 @@ async function processExcelFile(file) {
 
       if (hasHeaderRow && headers.length > 0) {
         for (let col = range.s.c; col <= range.e.c; col++) {
-          const colBarcodes = [];
+          const cleanBarcodes = [];
+          const rawValues = [];
           const headerName = headers[col - range.s.c];
 
           for (let row = range.s.r + 1; row <= range.e.r; row++) {
             const cell = sheet[XLSX.utils.encode_cell({ r: row, c: col })];
             if (cell && cell.v !== undefined && cell.v !== null) {
               const val = String(cell.v).trim();
-              if (/^\d{3,}$/.test(val)) {
-                colBarcodes.push(val);
+              const type = isBarcodeLike(val);
+              if (type === "clean") {
+                cleanBarcodes.push(val);
+              } else if (type === "raw") {
+                rawValues.push(val);
               }
             }
           }
 
-          if (colBarcodes.length > 0) {
-            results.push({
-              tableName: headerName,
-              barcodes: [...new Set(colBarcodes)]
-            });
+          if (rawValues.length > 0) {
+            needsAI = true;
           }
+
+          allRawBySheet.push({ headerName, cleanBarcodes, rawValues, isHeaderMode: true });
         }
       } else {
-        const barcodes = [];
+        const cleanBarcodes = [];
+        const rawValues = [];
         for (let row = range.s.r; row <= range.e.r; row++) {
           for (let col = range.s.c; col <= range.e.c; col++) {
             const cell = sheet[XLSX.utils.encode_cell({ r: row, c: col })];
             if (cell && cell.v) {
               const val = String(cell.v).trim();
-              if (/^\d{3,}$/.test(val)) {
-                barcodes.push(val);
+              const type = isBarcodeLike(val);
+              if (type === "clean") {
+                cleanBarcodes.push(val);
+              } else if (type === "raw") {
+                rawValues.push(val);
               }
             }
           }
         }
 
-        if (barcodes.length > 0) {
+        if (rawValues.length > 0) {
+          needsAI = true;
+        }
+
+        allRawBySheet.push({ headerName: sheetName, cleanBarcodes, rawValues, isHeaderMode: false });
+      }
+    }
+
+    if (needsAI) {
+      showLoadingOverlay("AI is processing UPC values...");
+    }
+
+    try {
+      for (const entry of allRawBySheet) {
+        if (entry.rawValues.length > 0) {
+          try {
+            const aiBarcodes = await extractBarcodesFromExcelText(entry.rawValues);
+            entry.cleanBarcodes.push(...aiBarcodes);
+          } catch (aiErr) {
+            console.error("AI extraction error:", aiErr);
+            showToast(aiErr.message || "AI processing failed");
+          }
+        }
+
+        if (entry.cleanBarcodes.length > 0) {
           results.push({
-            tableName: sheetName,
-            barcodes: [...new Set(barcodes)]
+            tableName: entry.headerName,
+            barcodes: [...new Set(entry.cleanBarcodes)]
           });
         }
       }
+    } finally {
+      hideLoadingOverlay();
     }
 
     if (results.length === 0) {
@@ -502,18 +555,21 @@ async function processExcelFile(file) {
     showReviewModal();
 
   } catch (err) {
+    hideLoadingOverlay();
     console.error("Excel processing error:", err);
     showToast("Error processing file");
   }
 }
 
 async function processImageFile(file) {
-  showToast("Analyzing image...");
+  showLoadingOverlay("Analyzing image...");
 
   try {
     const base64 = await fileToBase64(file);
     const mimeType = file.type || "image/png";
     const barcodes = await extractBarcodesFromImage(base64, mimeType);
+
+    hideLoadingOverlay();
 
     if (barcodes.length === 0) {
       showToast("No barcodes found");
@@ -527,6 +583,7 @@ async function processImageFile(file) {
     showReviewModal();
 
   } catch (err) {
+    hideLoadingOverlay();
     console.error("Image processing error:", err);
     showToast(err.message || "Error processing image");
   }
@@ -543,10 +600,24 @@ function showReviewModal() {
     const groupDiv = document.createElement("div");
     groupDiv.className = "table-group";
 
-    const nameDiv = document.createElement("div");
-    nameDiv.className = "table-name";
-    nameDiv.textContent = group.tableName;
-    groupDiv.appendChild(nameDiv);
+    const nameRow = document.createElement("div");
+    nameRow.className = "table-name-row";
+
+    const groupCheckbox = document.createElement("input");
+    groupCheckbox.type = "checkbox";
+    groupCheckbox.checked = true;
+    groupCheckbox.dataset.group = groupIndex;
+
+    const nameLabel = document.createElement("span");
+    nameLabel.className = "table-name-label";
+    nameLabel.textContent = group.tableName;
+    nameLabel.onclick = () => { groupCheckbox.click(); };
+
+    nameRow.appendChild(groupCheckbox);
+    nameRow.appendChild(nameLabel);
+    groupDiv.appendChild(nameRow);
+
+    const startIndex = selectedForExtraction.length;
 
     group.barcodes.forEach((barcode, barcodeIndex) => {
       const index = selectedForExtraction.length;
@@ -565,6 +636,7 @@ function showReviewModal() {
       checkbox.dataset.index = index;
       checkbox.onchange = (e) => {
         selectedForExtraction[index].selected = e.target.checked;
+        updateGroupCheckbox(groupIndex);
       };
 
       const valueSpan = document.createElement("span");
@@ -584,10 +656,32 @@ function showReviewModal() {
       groupDiv.appendChild(itemDiv);
     });
 
+    const endIndex = selectedForExtraction.length;
+
+    groupCheckbox.onchange = (e) => {
+      const checked = e.target.checked;
+      for (let i = startIndex; i < endIndex; i++) {
+        selectedForExtraction[i].selected = checked;
+        const cb = document.querySelector(`input[data-index="${i}"]`);
+        if (cb) cb.checked = checked;
+      }
+    };
+
     content.appendChild(groupDiv);
   });
 
   modal.style.display = "flex";
+}
+
+function updateGroupCheckbox(groupIndex) {
+  const groupItems = selectedForExtraction.filter(item => item.groupIndex === groupIndex);
+  const allSelected = groupItems.every(item => item.selected);
+  const noneSelected = groupItems.every(item => !item.selected);
+  const groupCb = document.querySelector(`input[data-group="${groupIndex}"]`);
+  if (groupCb) {
+    groupCb.checked = allSelected;
+    groupCb.indeterminate = !allSelected && !noneSelected;
+  }
 }
 
 function closeReviewModal() {
@@ -602,21 +696,32 @@ function selectAllItems(select) {
     const checkbox = document.querySelector(`input[data-index="${index}"]`);
     if (checkbox) checkbox.checked = select;
   });
+
+  document.querySelectorAll('input[data-group]').forEach(gcb => {
+    gcb.checked = select;
+    gcb.indeterminate = false;
+  });
 }
 
 function addSelectedBarcodes() {
+  const removeCheckDigit = document.getElementById("removeCheckDigitToggle")?.checked || false;
   const toAdd = [];
   const categoriesToCreate = [];
 
   selectedForExtraction.forEach((item) => {
     if (!item.selected) return;
 
-    const existingInCategory = state.categories[state.active]?.includes(item.barcode);
+    let barcode = item.barcode;
+    if (removeCheckDigit && barcode.length > 1) {
+      barcode = barcode.slice(0, -1);
+    }
+
+    const existingInCategory = state.categories[state.active]?.includes(barcode);
     if (existingInCategory) return;
 
-    const existingAnywhere = Object.values(state.categories).some(cat => cat.includes(item.barcode));
+    const existingAnywhere = Object.values(state.categories).some(cat => cat.includes(barcode));
     if (!existingAnywhere) {
-      toAdd.push(item);
+      toAdd.push({ ...item, barcode });
     }
   });
 
