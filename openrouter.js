@@ -31,7 +31,7 @@ async function extractBarcodesFromImage(imageData, mimeType) {
       "X-Title": "Barcode Lists Extension"
     },
     body: JSON.stringify({
-      model: "qwen/qwen3.6-plus:free",
+      model: "openrouter/free",
       messages: [
         {
           role: "user",
@@ -104,7 +104,7 @@ async function extractBarcodesFromExcelText(rawValues) {
       "X-Title": "Barcode Lists Extension"
     },
     body: JSON.stringify({
-      model: "qwen/qwen3.6-plus:free",
+      model: "openrouter/free",
       messages: [
         {
           role: "user",
@@ -147,6 +147,80 @@ ${numberedList}`
     .split("\n")
     .map(line => line.trim())
     .filter(line => /^\d{4,}$/.test(line));
+
+  return [...new Set(barcodes)];
+}
+
+async function extractBarcodesFromDisplayPlan(rawValues, tableName) {
+  const apiKey = await getOpenRouterApiKey();
+  if (!apiKey) {
+    throw new Error("OpenRouter API key not configured. Please add it in Settings.");
+  }
+
+  const numberedList = rawValues.map((v, i) => `${i + 1}. ${v}`).join("\n");
+
+  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+      "HTTP-Referer": chrome.runtime.getURL(""),
+      "X-Title": "Barcode Lists Extension"
+    },
+    body: JSON.stringify({
+      model: "openrouter/free",
+      messages: [
+        {
+          role: "user",
+          content: `You are an expert at reading UPC/barcode numbers from a retail Display Plan spreadsheet.
+
+This data comes from a store Display Plan file where each cell contains a product name followed by its UPC code. For example:
+- "Kettle Chips 156-198g" has no UPC
+- "Phil & Sebastian Coffee 62817644323" contains UPC: 62817644323
+- "Smuckers Jams 5150002591" contains UPC: 5150002591
+- "GM Cheerios 725 6563313414" contains UPC: 6563313414 (ignore the "725" prefix)
+
+Your task:
+1. For each value, identify if it contains a UPC/barcode number (10-14 digits)
+2. UPC codes are often embedded within product names with sizes
+3. Common patterns: "Product Name SIZE CODE" or "Brand Product CODE"
+4. Extract ONLY the UPC code portion (10-14 consecutive digits that form a valid UPC)
+5. If a cell contains multiple potential codes, extract the one that looks like a valid UPC (10-14 digits)
+6. Do NOT include size numbers (like "156" in "156-198g") unless they are part of a 10-14 digit UPC
+
+Rules:
+- Return EXACTLY one UPC number per line, in the same order as the input
+- Return ONLY the numeric UPC codes, nothing else
+- Do NOT include any explanation, labels, or text other than the numbers
+- If a value has no UPC code, return "NONE" on that line
+- Valid UPC codes are 8, 12, 13, or 14 digits
+- When you see numbers like "725 6563313414", extract "6563313414" (the 10-digit UPC)
+- Remove spaces from multi-part UPCs like "515 000 2591" -> "5150002591"
+
+Raw values from "${tableName}":
+${numberedList}`
+        }
+      ],
+      max_tokens: 3000,
+      temperature: 0.1
+    })
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    if (response.status === 401) {
+      throw new Error("Invalid API key. Please check your OpenRouter API key in Settings.");
+    }
+    throw new Error(`API Error: ${response.status} - ${errorData.error?.message || response.statusText}`);
+  }
+
+  const data = await response.json();
+  const content = data.choices?.[0]?.message?.content || "";
+
+  const barcodes = content
+    .split("\n")
+    .map(line => line.trim())
+    .filter(line => /^\d{8,14}$/.test(line));
 
   return [...new Set(barcodes)];
 }

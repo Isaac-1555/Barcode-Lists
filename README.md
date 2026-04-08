@@ -74,7 +74,7 @@ Barcode_saver/
 | Vanilla JavaScript (ES6+) | Application logic (async/await, Promises, template literals) |
 | HTML5 / CSS3 | UI markup and dark-themed styling |
 | Supabase (REST API) | Cloud database for authentication and data sync |
-| OpenRouter AI API | AI-powered barcode extraction (model: `qwen/qwen3.6-plus:free`) |
+| OpenRouter AI API | AI-powered barcode extraction (model: `openrouter/free`) |
 | SheetJS (xlsx.js) | Client-side Excel file parsing |
 | Chrome APIs | `chrome.storage.local`, `chrome.storage.session`, `chrome.sidePanel`, `chrome.tabs`, `chrome.runtime` |
 
@@ -187,7 +187,7 @@ The extension uses the [OpenRouter](https://openrouter.ai/) API for AI features.
 2. Generate an API key
 3. Enter the key in the extension's settings modal
 
-The extension uses the `qwen/qwen3.6-plus:free` model, which is free to use on OpenRouter.
+The extension uses the `openrouter/free` model, which is free to use on OpenRouter.
 
 ## Privacy
 

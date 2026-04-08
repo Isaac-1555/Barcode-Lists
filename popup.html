@@ -113,6 +113,23 @@
     </div>
   </div>
 
+  <div id="sheetSelectorModal" class="modal" style="display: none;">
+    <div class="modal-content settings-modal sheet-selector-modal">
+      <div class="modal-header">
+        <h3>Select Sheets to Extract</h3>
+        <span id="closeSheetSelectorModal" class="modal-close">&times;</span>
+      </div>
+      <div class="modal-body">
+        <p class="settings-hint">This file contains multiple sheets. Select which week(s) to extract barcodes from:</p>
+        <div id="sheetSelectorList" class="sheet-selector-list"></div>
+      </div>
+      <div class="modal-footer">
+        <button id="cancelSheetSelectorBtn" class="cancel-btn">Cancel</button>
+        <button id="confirmSheetSelectorBtn" class="add-btn">Extract Selected</button>
+      </div>
+    </div>
+  </div>
+
   <input type="file" id="fileInput" accept=".xlsx,.xls,.png,.jpg,.jpeg,.gif,.bmp,.webp" style="display: none;" />
 
   <script src="xlsx.full.min.js"></script>
