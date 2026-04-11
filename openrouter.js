@@ -104,7 +104,7 @@ async function extractBarcodesFromExcelText(rawValues) {
       "X-Title": "Barcode Lists Extension"
     },
     body: JSON.stringify({
-      model: "openrouter/free",
+      model: "openai/gpt-oss-120b:free",
       messages: [
         {
           role: "user",
