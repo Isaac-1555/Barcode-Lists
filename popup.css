@@ -226,6 +226,7 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
   padding: 10px 10px;
   margin-bottom: 6px;
   border-radius: 8px;
@@ -279,10 +280,7 @@ body {
 }
 
 .comment-textarea {
-  position: absolute;
-  bottom: 100%;
-  left: 10px;
-  right: 10px;
+  width: 100%;
   min-height: 36px;
   max-height: 80px;
   padding: 6px 8px;
@@ -293,11 +291,8 @@ body {
   font-size: 12px;
   font-family: inherit;
   resize: none;
-}
-
-.comment-textarea {
-  z-index: 200;
-  margin-bottom: 8px;
+  margin-top: 8px;
+  order: 3;
 }
 
 .comment-textarea:focus {

@@ -15,6 +15,12 @@ A Chrome Extension (Manifest V3) for retail and store employees to store, organi
 - Drag-and-drop category reordering via HTML5 drag events
 - Sidebar navigation with active category highlighting
 
+### Barcode Comments
+- Add a short note to any barcode (max 250 characters)
+- Comments display below each barcode in the list
+- Click the comment icon to add or edit a comment
+- Comments sync to the cloud with barcode data
+
 ### AI-Powered Extraction
 - **Image OCR** -- upload images (`.png`, `.jpg`, `.gif`, `.bmp`, `.webp`) of physical barcodes; an AI vision model extracts UPC/EAN numbers automatically
 - **Excel Import** -- upload `.xlsx`/`.xls` files; the extension parses columns, identifies barcode-like values, and uses AI to clean messy or formatted entries (removing spaces, dashes, etc.)
@@ -88,8 +94,8 @@ Stored under `"barcodeData"` in `chrome.storage.local`:
 {
   "categoryOrder": ["Default", "Dairy", "Produce"],
   "categories": {
-    "Default": ["012345678901", "098765432109"],
-    "Dairy": ["111222333444"],
+    "Default": [{"barcode": "012345678901", "comment": "Check price"}, {"barcode": "098765432109", "comment": ""}],
+    "Dairy": [{"barcode": "111222333444", "comment": "On sale"}],
     "Produce": []
   },
   "active": "Default"
@@ -116,6 +122,16 @@ Stored under `"barcodeData"` in `chrome.storage.local`:
 | `category_name` | string | Category this barcode belongs to |
 | `barcode_value` | string | The barcode number (numeric string) |
 | `created_at` | timestamp | Creation time (used for ordering) |
+
+**`barcode_comments`**
+
+| Column | Type | Description |
+|---|---|---|
+| `id` | PK | Auto-generated row ID |
+| `store_id` | FK -> stores.id | Owning store |
+| `barcode_value` | string | The barcode this comment belongs to |
+| `comment` | string | The comment text (max 250 chars) |
+| `updated_at` | timestamp | Last update time |
 
 ### Sync Strategy
 
@@ -161,6 +177,7 @@ There is no build step. The extension loads directly from source.
 - Only numeric values are accepted; duplicates are rejected with a notification
 - Click the copy icon next to a barcode to copy it to the clipboard
 - Click the delete icon to remove a barcode
+- Click the comment icon to add or edit a note on any barcode
 
 ### Importing from Excel
 1. Click the upload button and select an `.xlsx` or `.xls` file

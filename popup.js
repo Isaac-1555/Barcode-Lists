@@ -385,7 +385,7 @@ function toggleCommentInput(code, li) {
     }
   });
 
-  li.insertBefore(textarea, actions);
+  li.appendChild(textarea);
   textarea.focus();
 }
 

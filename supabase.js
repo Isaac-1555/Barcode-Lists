@@ -232,9 +232,9 @@ async function saveComment(storeId, barcodeValue, comment) {
   const truncated = comment.slice(0, 250);
 
   await fetch(
-    `${SUPABASE_URL}/rest/v1/barcode_comments?store_id=eq.${storeId}&barcode_value=eq.${encodeURIComponent(barcodeValue)}`,
+    `${SUPABASE_URL}/rest/v1/barcode_comments?on_conflict=store_id,barcode_value`,
     {
-      method: 'upsert',
+      method: 'POST',
       headers: {
         'apikey': SUPABASE_ANON_KEY,
         'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,

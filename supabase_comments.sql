@@ -14,11 +14,17 @@ CREATE TABLE IF NOT EXISTS barcode_comments (
 -- Enable RLS
 ALTER TABLE barcode_comments ENABLE ROW LEVEL SECURITY;
 
--- Policy for anon access (matching barcodes table)
-CREATE POLICY "Allow anonymous access" ON barcode_comments
-  FOR SELECT USING (true)
-  FOR INSERT WITH CHECK (true)
-  FOR UPDATE USING (true)
+-- Policies for anon access (matching barcodes table)
+CREATE POLICY "Allow anonymous select" ON barcode_comments
+  FOR SELECT USING (true);
+
+CREATE POLICY "Allow anonymous insert" ON barcode_comments
+  FOR INSERT WITH CHECK (true);
+
+CREATE POLICY "Allow anonymous update" ON barcode_comments
+  FOR UPDATE USING (true) WITH CHECK (true);
+
+CREATE POLICY "Allow anonymous delete" ON barcode_comments
   FOR DELETE USING (true);
 
 -- Index for lookups

@@ -1,0 +1,94 @@
+diff --git a/popup.css b/popup.css
+index 5d28d0c..b9d7ef8 100644
+--- a/popup.css
++++ b/popup.css
+@@ -226,6 +226,7 @@ body {
+   display: flex;
+   justify-content: space-between;
+   align-items: center;
++  flex-wrap: wrap;
+   padding: 10px 10px;
+   margin-bottom: 6px;
+   border-radius: 8px;
+@@ -279,10 +280,7 @@ body {
+ }
+ 
+ .comment-textarea {
+-  position: absolute;
+-  bottom: 100%;
+-  left: 10px;
+-  right: 10px;
++  width: 100%;
+   min-height: 36px;
+   max-height: 80px;
+   padding: 6px 8px;
+@@ -293,11 +291,8 @@ body {
+   font-size: 12px;
+   font-family: inherit;
+   resize: none;
+-}
+-
+-.comment-textarea {
+-  z-index: 200;
+-  margin-bottom: 8px;
++  margin-top: 8px;
++  order: 3;
+ }
+ 
+ .comment-textarea:focus {
+diff --git a/popup.js b/popup.js
+index 815d8b4..7863dc1 100644
+--- a/popup.js
++++ b/popup.js
+@@ -385,7 +385,7 @@ function toggleCommentInput(code, li) {
+     }
+   });
+ 
+-  li.insertBefore(textarea, actions);
++  li.appendChild(textarea);
+   textarea.focus();
+ }
+ 
+diff --git a/supabase.js b/supabase.js
+index 43f4b41..52caa34 100644
+--- a/supabase.js
++++ b/supabase.js
+@@ -232,9 +232,9 @@ async function saveComment(storeId, barcodeValue, comment) {
+   const truncated = comment.slice(0, 250);
+ 
+   await fetch(
+-    `${SUPABASE_URL}/rest/v1/barcode_comments?store_id=eq.${storeId}&barcode_value=eq.${encodeURIComponent(barcodeValue)}`,
++    `${SUPABASE_URL}/rest/v1/barcode_comments?on_conflict=store_id,barcode_value`,
+     {
+-      method: 'upsert',
++      method: 'POST',
+       headers: {
+         'apikey': SUPABASE_ANON_KEY,
+         'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+diff --git a/supabase_comments.sql b/supabase_comments.sql
+index 68d829d..ab2702c 100644
+--- a/supabase_comments.sql
++++ b/supabase_comments.sql
+@@ -14,11 +14,17 @@ CREATE TABLE IF NOT EXISTS barcode_comments (
+ -- Enable RLS
+ ALTER TABLE barcode_comments ENABLE ROW LEVEL SECURITY;
+ 
+--- Policy for anon access (matching barcodes table)
+-CREATE POLICY "Allow anonymous access" ON barcode_comments
+-  FOR SELECT USING (true)
+-  FOR INSERT WITH CHECK (true)
+-  FOR UPDATE USING (true)
++-- Policies for anon access (matching barcodes table)
++CREATE POLICY "Allow anonymous select" ON barcode_comments
++  FOR SELECT USING (true);
++
++CREATE POLICY "Allow anonymous insert" ON barcode_comments
++  FOR INSERT WITH CHECK (true);
++
++CREATE POLICY "Allow anonymous update" ON barcode_comments
++  FOR UPDATE USING (true) WITH CHECK (true);
++
++CREATE POLICY "Allow anonymous delete" ON barcode_comments
+   FOR DELETE USING (true);
+ 
+ -- Index for lookups
