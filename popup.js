@@ -3,6 +3,7 @@ const storageKey = "barcodeData";
 let state = {
   categoryOrder: [],
   categories: {},
+  comments: {},
   active: null
 };
 
@@ -103,6 +104,7 @@ async function loadState() {
     const saved = result[storageKey];
     state.categoryOrder = saved.categoryOrder || [];
     state.categories = saved.categories || {};
+    state.comments = saved.comments || {};
     state.active = saved.active || null;
   }
   
@@ -114,6 +116,7 @@ function saveState() {
     [storageKey]: {
       categoryOrder: state.categoryOrder,
       categories: state.categories,
+      comments: state.comments,
       active: state.active
     }
   });
@@ -314,6 +317,19 @@ function renderBarcodes() {
     const actions = document.createElement("div");
     actions.style.display = "flex";
     actions.style.gap = "8px";
+    actions.style.alignItems = "center";
+
+    const commentBtn = document.createElement("span");
+    const hasComment = state.comments && state.comments[code];
+    commentBtn.innerHTML = hasComment
+      ? `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="comment-icon"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`
+      : `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="comment-icon"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`;
+    commentBtn.style.cursor = "pointer";
+    commentBtn.title = "Comment";
+    commentBtn.onclick = (e) => {
+      e.stopPropagation();
+      toggleCommentInput(code, li);
+    };
 
     const copyBtn = document.createElement("span");
     copyBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="copy-icon"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>`;
@@ -333,6 +349,7 @@ function renderBarcodes() {
       removeBarcode(code);
     };
 
+    actions.appendChild(commentBtn);
     actions.appendChild(copyBtn);
     actions.appendChild(del);
 
@@ -341,6 +358,55 @@ function renderBarcodes() {
 
     ul.appendChild(li);
   });
+}
+
+function toggleCommentInput(code, li) {
+  const existing = li.querySelector('.comment-textarea');
+  if (existing) {
+    existing.remove();
+    return;
+  }
+
+  const actions = li.querySelector('div');
+  const textarea = document.createElement("textarea");
+  textarea.className = "comment-textarea";
+  textarea.maxLength = 250;
+  textarea.value = (state.comments && state.comments[code]) || "";
+
+  textarea.addEventListener("blur", () => {
+    saveBarcodeComment(code, textarea.value);
+    render();
+  });
+
+  textarea.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      textarea.blur();
+    }
+  });
+
+  li.insertBefore(textarea, actions);
+  textarea.focus();
+}
+
+function saveBarcodeComment(code, comment) {
+  const truncated = comment.slice(0, 250).trim();
+
+  if (!state.comments) {
+    state.comments = {};
+  }
+
+  if (truncated) {
+    state.comments[code] = truncated;
+  } else {
+    delete state.comments[code];
+  }
+
+  saveState();
+
+  if (isOnlineMode && session) {
+    saveComment(session.storeId, code, truncated).catch(console.error);
+  }
 }
 
 function setupEventListeners() {

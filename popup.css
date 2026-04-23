@@ -233,6 +233,7 @@ body {
   border: 1px solid #2a2a2e;
   font-size: 13px;
   transition: background 0.2s;
+  position: relative;
 }
 
 #barcodeList li span {
@@ -251,6 +252,7 @@ body {
   display: flex;
   align-items: center;
   cursor: pointer;
+  pointer-events: auto;
 }
 
 #barcodeList li div span:hover {
@@ -268,6 +270,39 @@ body {
 
 .copy-icon {
   stroke: #a1a1aa;
+}
+
+.comment-icon {
+  stroke: #a1a1aa;
+  transition: stroke 0.2s;
+  pointer-events: auto;
+}
+
+.comment-textarea {
+  position: absolute;
+  bottom: 100%;
+  left: 10px;
+  right: 10px;
+  min-height: 36px;
+  max-height: 80px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid #3f3f46;
+  background: #18181b;
+  color: #e4e4e7;
+  font-size: 12px;
+  font-family: inherit;
+  resize: none;
+}
+
+.comment-textarea {
+  z-index: 200;
+  margin-bottom: 8px;
+}
+
+.comment-textarea:focus {
+  outline: none;
+  border-color: #22c55e;
 }
 
 .delete-icon {

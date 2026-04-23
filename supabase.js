@@ -129,9 +129,28 @@ async function syncFromRemote(session) {
     }
   });
 
+  const commentsResponse = await fetch(
+    `${SUPABASE_URL}/rest/v1/barcode_comments?store_id=eq.${session.storeId}&select=barcode_value,comment`,
+    {
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+      }
+    }
+  );
+
+  const commentsData = await commentsResponse.json();
+  const comments = {};
+  commentsData.forEach(c => {
+    if (c.comment) {
+      comments[c.barcode_value] = c.comment;
+    }
+  });
+
   return {
     categoryOrder,
     categories,
+    comments,
     active: categoryOrder[0] || null
   };
 }
@@ -192,4 +211,55 @@ async function syncToRemote(session, state) {
       throw new Error('Failed to save data');
     }
   }
+}
+
+async function getComment(storeId, barcodeValue) {
+  const response = await fetch(
+    `${SUPABASE_URL}/rest/v1/barcode_comments?store_id=eq.${storeId}&barcode_value=eq.${encodeURIComponent(barcodeValue)}&select=comment`,
+    {
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+      }
+    }
+  );
+
+  const comments = await response.json();
+  return comments && comments.length > 0 ? comments[0].comment : null;
+}
+
+async function saveComment(storeId, barcodeValue, comment) {
+  const truncated = comment.slice(0, 250);
+
+  await fetch(
+    `${SUPABASE_URL}/rest/v1/barcode_comments?store_id=eq.${storeId}&barcode_value=eq.${encodeURIComponent(barcodeValue)}`,
+    {
+      method: 'upsert',
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'resolution=merge-duplicates'
+      },
+      body: JSON.stringify({
+        store_id: storeId,
+        barcode_value: barcodeValue,
+        comment: truncated,
+        updated_at: new Date().toISOString()
+      })
+    }
+  );
+}
+
+async function deleteComment(storeId, barcodeValue) {
+  await fetch(
+    `${SUPABASE_URL}/rest/v1/barcode_comments?store_id=eq.${storeId}&barcode_value=eq.${encodeURIComponent(barcodeValue)}`,
+    {
+      method: 'DELETE',
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+      }
+    }
+  );
 }
