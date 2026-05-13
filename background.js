@@ -2,11 +2,10 @@ importScripts('supabase.js');
 
 const POLL_INTERVAL = 10000;
 let pollTimer = null;
-let lastBarcodeCount = 0;
-let lastTimestamp = null;
+
+chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(console.error);
 
 chrome.runtime.onInstalled.addListener(() => {
-  chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(console.error);
   setupAlarm();
   startBackground();
 });
@@ -54,17 +53,23 @@ async function doPoll(session) {
     const count = await getBarcodeCount(session.storeId);
     const timestamp = await getLatestBarcodeTimestamp(session.storeId);
 
-    const isFirstRun = lastBarcodeCount === 0;
-    const countIncreased = count > lastBarcodeCount;
-    const timestampChanged = timestamp && timestamp !== lastTimestamp;
+    const storage = await chrome.storage.local.get(['lastBarcodeCount', 'lastTimestamp']);
+    const prevCount = storage.lastBarcodeCount || 0;
+    const prevTimestamp = storage.lastTimestamp || null;
+
+    const isFirstRun = prevCount === 0;
+    const countIncreased = count > prevCount;
+    const timestampChanged = timestamp && timestamp !== prevTimestamp;
 
     if (!isFirstRun && (countIncreased || timestampChanged)) {
-      const newCount = count - lastBarcodeCount;
+      const newCount = count - prevCount;
       await notifyNewData(session, Math.max(newCount, 1));
     }
 
-    lastBarcodeCount = count;
-    if (timestamp) lastTimestamp = timestamp;
+    await chrome.storage.local.set({
+      lastBarcodeCount: count,
+      lastTimestamp: timestamp
+    });
   } catch (err) {
     console.error("Poll error:", err);
   }
@@ -72,22 +77,45 @@ async function doPoll(session) {
 
 async function notifyNewData(session, newCount) {
   try {
-    await chrome.runtime.sendMessage({
+    const response = await chrome.runtime.sendMessage({
       type: "NEW_DATA",
       storeNumber: session.storeNumber
     });
+    if (!response) sendNotification(session, newCount);
   } catch {
     sendNotification(session, newCount);
   }
 }
 
 function sendNotification(session, newCount) {
-  chrome.notifications.create({
+  const message = `${newCount} new barcode(s) for store ${session.storeNumber}`;
+  
+  // 1. Set Badge
+  chrome.action.setBadgeText({ text: "NEW" }).catch(() => {});
+  chrome.action.setBadgeBackgroundColor({ color: "#FF0000" }).catch(() => {});
+  
+  // 2. Native Notification (fixed iconUrl)
+  const notificationId = "new-data-" + Date.now();
+  chrome.notifications.create(notificationId, {
     type: "basic",
     iconUrl: "icon48.png",
     title: "New Barcode List",
-    message: `${newCount} new barcode(s) for store ${session.storeNumber}`,
-    contextMessage: `Tap to open side panel`
+    message: message,
+    contextMessage: "Tap to open side panel"
+  }, (id) => {
+    if (chrome.runtime.lastError) {
+      console.error("Notification error:", chrome.runtime.lastError);
+    }
+  });
+
+  // 3. Overlay Notification on active tabs
+  chrome.tabs.query({active: true}, (tabs) => {
+    tabs.forEach(tab => {
+      chrome.tabs.sendMessage(tab.id, {
+        type: "SHOW_OVERLAY",
+        message: message
+      }).catch(() => {});
+    });
   });
 }
 
@@ -101,4 +129,11 @@ chrome.notifications.onClicked.addListener(() => {
       });
     }
   });
+});
+
+
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg.type === "CLEAR_BADGE") {
+    chrome.action.setBadgeText({ text: "" }).catch(() => {});
+  }
 });

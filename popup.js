@@ -18,6 +18,7 @@ let currentWorkbook = null;
 let selectedSheets = [];
 
 document.addEventListener("DOMContentLoaded", async () => {
+  chrome.action.setBadgeText({ text: "" }).catch(() => {});
   session = await getSession();
   
   if (session) {
@@ -106,9 +107,10 @@ async function loadRemoteData() {
   }
 }
 
-chrome.runtime.onMessage.addListener((msg) => {
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === "NEW_DATA") {
-    loadRemoteData();
+    loadRemoteData().then(() => sendResponse(true));
+    return true;
   }
 });
 

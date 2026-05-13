@@ -3,12 +3,20 @@
   "name": "Barcode Lists",
   "version": "4.5",
   "description": "Store and manage barcode lists with OCR extraction",
-  "permissions": ["storage", "sidePanel", "notifications", "alarms"],
+  "permissions": [
+    "storage",
+    "sidePanel",
+    "notifications",
+    "alarms"
+  ],
   "icons": {
     "48": "icon48.png",
     "128": "icon128.png"
   },
-  "host_permissions": ["https://*.supabase.co/*", "https://openrouter.ai/*"],
+  "host_permissions": [
+    "https://*.supabase.co/*",
+    "https://openrouter.ai/*"
+  ],
   "background": {
     "service_worker": "background.js"
   },
@@ -17,5 +25,15 @@
   },
   "side_panel": {
     "default_path": "popup.html"
-  }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content.js"
+      ]
+    }
+  ]
 }
