@@ -71,17 +71,17 @@ async function login(storeNumber, password) {
     passwordHash
   };
 
-  await chrome.storage.session.set({ supabaseSession: session });
+  await chrome.storage.local.set({ supabaseSession: session });
 
   return session;
 }
 
 async function logout() {
-  await chrome.storage.session.remove('supabaseSession');
+  await chrome.storage.local.remove('supabaseSession');
 }
 
 async function getSession() {
-  const result = await chrome.storage.session.get('supabaseSession');
+  const result = await chrome.storage.local.get('supabaseSession');
   return result.supabaseSession || null;
 }
 
@@ -262,4 +262,39 @@ async function deleteComment(storeId, barcodeValue) {
       }
     }
   );
+}
+
+async function getBarcodeCount(storeId) {
+  const response = await fetch(
+    `${SUPABASE_URL}/rest/v1/barcodes?store_id=eq.${storeId}&select=id&limit=1`,
+    {
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+      }
+    }
+  );
+  if (!response.ok) return 0;
+  const totalStr = response.headers.get('content-range');
+  if (totalStr) {
+    const match = totalStr.match(/\/(\d+)$/);
+    if (match) return parseInt(match[1], 10);
+  }
+  const data = await response.json();
+  return data.length;
+}
+
+async function getLatestBarcodeTimestamp(storeId) {
+  const response = await fetch(
+    `${SUPABASE_URL}/rest/v1/barcodes?store_id=eq.${storeId}&select=created_at&order=created_at.desc&limit=1`,
+    {
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+      }
+    }
+  );
+  if (!response.ok) return null;
+  const data = await response.json();
+  return data && data.length > 0 ? data[0].created_at : null;
 }

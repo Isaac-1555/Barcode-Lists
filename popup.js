@@ -93,6 +93,25 @@ async function initApp() {
   render();
 }
 
+async function loadRemoteData() {
+  if (!isOnlineMode || !session) return;
+  try {
+    const remoteState = await syncFromRemote(session);
+    state = remoteState;
+    saveState();
+    render();
+    showToast("List updated from phone");
+  } catch (err) {
+    console.log("Auto-sync failed:", err);
+  }
+}
+
+chrome.runtime.onMessage.addListener((msg) => {
+  if (msg.type === "NEW_DATA") {
+    loadRemoteData();
+  }
+});
+
 async function loadState() {
   if (!chrome.storage || !chrome.storage.local) {
     console.error("chrome.storage not available");
