@@ -141,14 +141,13 @@ body {
 
 .header-buttons button {
   height: 30px;
-  width: 60px;
+  width: 30px;
   padding: 0;
   border-radius: 6px;
   border: none;
   background: #27272a;
   color: #e4e4e7;
   cursor: pointer;
-  font-size: 11px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -207,6 +206,30 @@ body {
 .input-row button.icon-btn-sm {
   width: 30px;
   height: 30px;
+}
+
+.icon-btn-sm {
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  background: #27272a;
+  color: #a1a1aa;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+.icon-btn-sm:hover {
+  background: #3f3f46;
+  color: #e4e4e7;
+}
+
+.icon-btn-sm svg {
+  stroke: currentColor;
 }
 
 .input-row button:hover {
