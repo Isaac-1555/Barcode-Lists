@@ -1,3 +1,11 @@
+## Alarms Justification
+
+The `alarms` permission is required to periodically check for new barcode data synced from other devices. Chrome Extension Manifest V3 service workers terminate after ~30 seconds of inactivity; the alarm wakes the worker every 1 minute to poll the cloud backend for updates. Without this permission, the extension cannot detect cross-device sync changes while the browser is running.
+
+## Notifications Justification
+
+The `notifications` permission is required to alert users when new barcodes are detected from cloud sync. When the background poll finds new data on the server, it creates a native OS notification with the count of new barcodes. Clicking the notification opens Chrome's side panel to view the updated lists. This is the primary mechanism for informing users of remote changes without requiring the side panel to be open.
+
 ## Single Purpose
 
 This Chrome extension allows users to store, organize, and manage barcode lists in categorized groups with optional cloud sync. Users can create categories, add/remove barcodes, reorder categories via drag-and-drop, and optionally sync data to a cloud backend for backup and cross-device access.
