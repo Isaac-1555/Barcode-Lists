@@ -4,7 +4,9 @@ let state = {
   categoryOrder: [],
   categories: {},
   comments: {},
-  active: null
+  active: null,
+  copiedBarcodes: {},
+  unopenedCategories: {}
 };
 
 let session = null;
@@ -78,8 +80,27 @@ async function initApp() {
   
   if (isOnlineMode) {
     try {
+      const oldOrder = [...state.categoryOrder];
+      const oldCopied = state.copiedBarcodes;
+      const oldUnopened = state.unopenedCategories;
       const remoteState = await syncFromRemote(session);
       state = remoteState;
+      state.copiedBarcodes = oldCopied || {};
+      state.unopenedCategories = oldUnopened || {};
+
+      const newCategories = state.categoryOrder.filter(n => !oldOrder.includes(n));
+      for (const name of newCategories) {
+        state.unopenedCategories[name] = true;
+      }
+
+      const mergedOrder = oldOrder.filter(n => state.categories[n]);
+      for (const name of newCategories) {
+        if (!mergedOrder.includes(name)) {
+          mergedOrder.push(name);
+        }
+      }
+      state.categoryOrder = mergedOrder;
+
       saveState();
       render();
     } catch (err) {
@@ -97,8 +118,28 @@ async function initApp() {
 async function loadRemoteData() {
   if (!isOnlineMode || !session) return;
   try {
+    const oldOrder = [...state.categoryOrder];
+    const oldCopied = state.copiedBarcodes;
+    const oldUnopened = state.unopenedCategories;
+
     const remoteState = await syncFromRemote(session);
     state = remoteState;
+    state.copiedBarcodes = oldCopied || {};
+    state.unopenedCategories = oldUnopened || {};
+
+    const newCategories = state.categoryOrder.filter(n => !oldOrder.includes(n));
+    for (const name of newCategories) {
+      state.unopenedCategories[name] = true;
+    }
+
+    const mergedOrder = oldOrder.filter(n => state.categories[n]);
+    for (const name of newCategories) {
+      if (!mergedOrder.includes(name)) {
+        mergedOrder.push(name);
+      }
+    }
+    state.categoryOrder = mergedOrder;
+
     saveState();
     render();
     showToast("List updated from phone");
@@ -127,6 +168,8 @@ async function loadState() {
     state.categories = saved.categories || {};
     state.comments = saved.comments || {};
     state.active = saved.active || null;
+    state.copiedBarcodes = saved.copiedBarcodes || {};
+    state.unopenedCategories = saved.unopenedCategories || {};
   }
   
   isOnlineMode = await isOnline();
@@ -138,7 +181,9 @@ function saveState() {
       categoryOrder: state.categoryOrder,
       categories: state.categories,
       comments: state.comments,
-      active: state.active
+      active: state.active,
+      copiedBarcodes: state.copiedBarcodes,
+      unopenedCategories: state.unopenedCategories
     }
   });
 }
@@ -185,6 +230,7 @@ function deleteCategory(name) {
   if (!confirm("Delete this category?")) return;
 
   delete state.categories[name];
+  delete state.unopenedCategories[name];
   state.categoryOrder = state.categoryOrder.filter(n => n !== name);
   state.active = state.categoryOrder[0] || null;
   saveAndSync();
@@ -196,6 +242,10 @@ function renameCategory(oldName, newName) {
 
   state.categories[newName] = state.categories[oldName];
   delete state.categories[oldName];
+  if (state.unopenedCategories[oldName]) {
+    state.unopenedCategories[newName] = true;
+    delete state.unopenedCategories[oldName];
+  }
   state.categoryOrder = state.categoryOrder.map(n => n === oldName ? newName : n);
   state.active = newName;
   saveAndSync();
@@ -229,6 +279,9 @@ function removeBarcode(value) {
 
 function copyToClipboard(text) {
   navigator.clipboard.writeText(text);
+  state.copiedBarcodes[text] = true;
+  saveState();
+  render();
   showToast("Copied");
 }
 
@@ -251,8 +304,13 @@ function renderCategories() {
       li.classList.add("active");
     }
 
+    if (state.unopenedCategories[name]) {
+      li.classList.add("unopened");
+    }
+
     li.onclick = () => {
       state.active = name;
+      delete state.unopenedCategories[name];
       saveState();
       render();
     };
@@ -334,6 +392,9 @@ function renderBarcodes() {
 
     const span = document.createElement("span");
     span.textContent = code;
+    if (state.copiedBarcodes[code]) {
+      span.classList.add("copied");
+    }
 
     const actions = document.createElement("div");
     actions.style.display = "flex";
