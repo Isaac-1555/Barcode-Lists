@@ -99,6 +99,27 @@ async function isOnline() {
   }
 }
 
+async function syncImportantCategories(session) {
+  const response = await fetch(
+    `${SUPABASE_URL}/rest/v1/important_categories?store_id=eq.${session.storeId}&select=category_name`,
+    {
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+      }
+    }
+  );
+
+  if (!response.ok) return {};
+
+  const data = await response.json();
+  const important = {};
+  data.forEach(row => {
+    important[row.category_name] = true;
+  });
+  return important;
+}
+
 async function syncFromRemote(session) {
   const response = await fetch(
     `${SUPABASE_URL}/rest/v1/barcodes?store_id=eq.${session.storeId}&select=*&order=created_at`,
@@ -147,10 +168,13 @@ async function syncFromRemote(session) {
     }
   });
 
+  const importantCategories = await syncImportantCategories(session);
+
   return {
     categoryOrder,
     categories,
     comments,
+    importantCategories,
     active: categoryOrder[0] || null
   };
 }

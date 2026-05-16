@@ -30,6 +30,8 @@ No build, no bundler, no package manager.
 
 **Sync Strategy**: `syncToRemote()` uses delete-all-then-reinsert. It deletes all remote barcodes for a store, then re-inserts the full local state. Not incremental—full replacement each time.
 
+**Important Lists (Red Glow)**: Categories can be marked as "important" via the `important_categories` Supabase table. When the companion app sends a list marked as important, it inserts a row into `important_categories(store_id, category_name)` alongside writing barcodes to the `barcodes` table. The extension fetches these during `syncFromRemote()` via `syncImportantCategories()` and stores them in `state.importantCategories`. Important categories display a permanent red pulsing glow until the category is deleted. The extension never writes to `important_categories` — it's write-only from the companion app, read-only from the extension.
+
 **Auth**: Store-based auth (not user-based). Each store (e.g., "FMC07") is a separate account. Passwords are hashed with a DJB2-style hash (`simpleHash()` in supabase.js) before storage/transmission.
 
 **Data Model**:

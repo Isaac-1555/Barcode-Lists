@@ -886,3 +886,13 @@ body {
   0%, 100% { box-shadow: 0 0 4px #22c55e; }
   50% { box-shadow: 0 0 12px #22c55e; }
 }
+
+#categoryList li.important {
+  box-shadow: 0 0 8px #f87171;
+  animation: importantGlow 2s ease-in-out infinite;
+}
+
+@keyframes importantGlow {
+  0%, 100% { box-shadow: 0 0 4px #f87171; }
+  50% { box-shadow: 0 0 12px #f87171; }
+}

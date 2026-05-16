@@ -6,7 +6,8 @@ let state = {
   comments: {},
   active: null,
   copiedBarcodes: {},
-  unopenedCategories: {}
+  unopenedCategories: {},
+  importantCategories: {}
 };
 
 let session = null;
@@ -170,6 +171,7 @@ async function loadState() {
     state.active = saved.active || null;
     state.copiedBarcodes = saved.copiedBarcodes || {};
     state.unopenedCategories = saved.unopenedCategories || {};
+    state.importantCategories = saved.importantCategories || {};
   }
   
   isOnlineMode = await isOnline();
@@ -183,7 +185,8 @@ function saveState() {
       comments: state.comments,
       active: state.active,
       copiedBarcodes: state.copiedBarcodes,
-      unopenedCategories: state.unopenedCategories
+      unopenedCategories: state.unopenedCategories,
+      importantCategories: state.importantCategories
     }
   });
 }
@@ -306,6 +309,10 @@ function renderCategories() {
 
     if (state.unopenedCategories[name]) {
       li.classList.add("unopened");
+    }
+
+    if (state.importantCategories[name]) {
+      li.classList.add("important");
     }
 
     li.onclick = () => {
