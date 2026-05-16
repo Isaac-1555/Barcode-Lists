@@ -319,6 +319,9 @@ function renderCategories() {
       state.active = name;
       delete state.unopenedCategories[name];
       saveState();
+      if (isOnlineMode && session) {
+        markCategoryOpened(session, name).catch(console.error);
+      }
       render();
     };
 

@@ -288,6 +288,26 @@ async function deleteComment(storeId, barcodeValue) {
   );
 }
 
+async function markCategoryOpened(session, categoryName) {
+  await fetch(
+    `${SUPABASE_URL}/rest/v1/opened_categories?on_conflict=store_id,category_name`,
+    {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'resolution=merge-duplicates'
+      },
+      body: JSON.stringify({
+        store_id: session.storeId,
+        category_name: categoryName,
+        opened_at: new Date().toISOString()
+      })
+    }
+  );
+}
+
 async function getBarcodeCount(storeId) {
   const response = await fetch(
     `${SUPABASE_URL}/rest/v1/barcodes?store_id=eq.${storeId}&select=id&limit=1`,
