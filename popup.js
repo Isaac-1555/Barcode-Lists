@@ -81,29 +81,8 @@ async function initApp() {
   
   if (isOnlineMode) {
     try {
-      const oldOrder = [...state.categoryOrder];
-      const oldCopied = state.copiedBarcodes;
-      const oldUnopened = state.unopenedCategories;
       const remoteState = await syncFromRemote(session);
-      state = remoteState;
-      state.copiedBarcodes = oldCopied || {};
-      state.unopenedCategories = oldUnopened || {};
-
-      const newCategories = state.categoryOrder.filter(n => !oldOrder.includes(n));
-      for (const name of newCategories) {
-        state.unopenedCategories[name] = true;
-      }
-
-      const mergedOrder = oldOrder.filter(n => state.categories[n]);
-      for (const name of newCategories) {
-        if (!mergedOrder.includes(name)) {
-          mergedOrder.push(name);
-        }
-      }
-      state.categoryOrder = mergedOrder;
-
-      saveState();
-      render();
+      await mergeRemoteState(remoteState);
     } catch (err) {
       console.log("Sync failed, using local data:", err);
     }
@@ -116,34 +95,56 @@ async function initApp() {
   render();
 }
 
+async function mergeRemoteState(remoteState) {
+  const oldOrder = [...state.categoryOrder];
+
+  for (const catName of remoteState.categoryOrder) {
+    const remoteBarcodes = remoteState.categories[catName] || [];
+    if (state.categories[catName]) {
+      for (const b of remoteBarcodes) {
+        if (!state.categories[catName].includes(b)) {
+          state.categories[catName].push(b);
+        }
+      }
+    } else {
+      state.categories[catName] = [...remoteBarcodes];
+    }
+  }
+
+  for (const [barcode, comment] of Object.entries(remoteState.comments || {})) {
+    if (!state.comments[barcode]) {
+      state.comments[barcode] = comment;
+    }
+  }
+
+  state.importantCategories = remoteState.importantCategories || [];
+
+  const newCategories = remoteState.categoryOrder.filter(n => !oldOrder.includes(n));
+  for (const name of newCategories) {
+    state.unopenedCategories[name] = true;
+  }
+
+  const mergedOrder = state.categoryOrder.filter(n => state.categories[n]);
+  for (const name of remoteState.categoryOrder) {
+    if (!mergedOrder.includes(name)) {
+      mergedOrder.push(name);
+    }
+  }
+  state.categoryOrder = mergedOrder;
+
+  saveState();
+  render();
+  return newCategories;
+}
+
 async function loadRemoteData() {
   if (!isOnlineMode || !session) return;
   try {
-    const oldOrder = [...state.categoryOrder];
-    const oldCopied = state.copiedBarcodes;
-    const oldUnopened = state.unopenedCategories;
-
     const remoteState = await syncFromRemote(session);
-    state = remoteState;
-    state.copiedBarcodes = oldCopied || {};
-    state.unopenedCategories = oldUnopened || {};
-
-    const newCategories = state.categoryOrder.filter(n => !oldOrder.includes(n));
-    for (const name of newCategories) {
-      state.unopenedCategories[name] = true;
+    const newCategories = await mergeRemoteState(remoteState);
+    if (newCategories.length > 0) {
+      showToast("List updated from phone");
     }
-
-    const mergedOrder = oldOrder.filter(n => state.categories[n]);
-    for (const name of newCategories) {
-      if (!mergedOrder.includes(name)) {
-        mergedOrder.push(name);
-      }
-    }
-    state.categoryOrder = mergedOrder;
-
-    saveState();
-    render();
-    showToast("List updated from phone");
   } catch (err) {
     console.log("Auto-sync failed:", err);
   }
@@ -198,6 +199,14 @@ async function saveAndSync() {
     updateSyncStatus("syncing");
     try {
       await syncToRemote(session, state);
+
+      const count = await getBarcodeCount(session.storeId);
+      const timestamp = await getLatestBarcodeTimestamp(session.storeId);
+      await chrome.storage.local.set({
+        lastBarcodeCount: count,
+        lastTimestamp: timestamp
+      });
+
       updateSyncStatus("online");
     } catch (err) {
       console.error("Sync failed:", err);
