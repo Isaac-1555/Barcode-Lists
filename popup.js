@@ -82,7 +82,13 @@ async function initApp() {
   if (isOnlineMode) {
     try {
       const remoteState = await syncFromRemote(session);
-      await mergeRemoteState(remoteState);
+      state.categoryOrder = remoteState.categoryOrder;
+      state.categories = remoteState.categories;
+      state.comments = remoteState.comments;
+      state.copiedBarcodes = remoteState.copiedBarcodes;
+      state.importantCategories = remoteState.importantCategories;
+      state.active = remoteState.active;
+      saveState();
     } catch (err) {
       console.log("Sync failed, using local data:", err);
     }
@@ -95,53 +101,26 @@ async function initApp() {
   render();
 }
 
-async function mergeRemoteState(remoteState) {
-  const oldOrder = [...state.categoryOrder];
-
-  for (const catName of remoteState.categoryOrder) {
-    const remoteBarcodes = remoteState.categories[catName] || [];
-    if (state.categories[catName]) {
-      for (const b of remoteBarcodes) {
-        if (!state.categories[catName].includes(b)) {
-          state.categories[catName].push(b);
-        }
-      }
-    } else {
-      state.categories[catName] = [...remoteBarcodes];
-    }
-  }
-
-  for (const [barcode, comment] of Object.entries(remoteState.comments || {})) {
-    if (!state.comments[barcode]) {
-      state.comments[barcode] = comment;
-    }
-  }
-
-  state.importantCategories = remoteState.importantCategories || [];
-
-  const newCategories = remoteState.categoryOrder.filter(n => !oldOrder.includes(n));
-  for (const name of newCategories) {
-    state.unopenedCategories[name] = true;
-  }
-
-  const mergedOrder = state.categoryOrder.filter(n => state.categories[n]);
-  for (const name of remoteState.categoryOrder) {
-    if (!mergedOrder.includes(name)) {
-      mergedOrder.push(name);
-    }
-  }
-  state.categoryOrder = mergedOrder;
-
-  saveState();
-  render();
-  return newCategories;
-}
-
 async function loadRemoteData() {
   if (!isOnlineMode || !session) return;
   try {
     const remoteState = await syncFromRemote(session);
-    const newCategories = await mergeRemoteState(remoteState);
+    const oldOrder = state.categoryOrder;
+    const newCategories = remoteState.categoryOrder.filter(n => !oldOrder.includes(n));
+
+    state.categoryOrder = remoteState.categoryOrder;
+    state.categories = remoteState.categories;
+    state.comments = remoteState.comments;
+    state.copiedBarcodes = remoteState.copiedBarcodes;
+    state.importantCategories = remoteState.importantCategories;
+    state.active = remoteState.active;
+    saveState();
+
+    for (const name of newCategories) {
+      state.unopenedCategories[name] = true;
+    }
+
+    render();
     if (newCategories.length > 0) {
       showToast("List updated from phone");
     }
@@ -196,22 +175,7 @@ async function saveAndSync() {
   saveState();
   
   if (isOnlineMode && session) {
-    updateSyncStatus("syncing");
-    try {
-      await syncToRemote(session, state);
-
-      const count = await getBarcodeCount(session.storeId);
-      const timestamp = await getLatestBarcodeTimestamp(session.storeId);
-      await chrome.storage.local.set({
-        lastBarcodeCount: count,
-        lastTimestamp: timestamp
-      });
-
-      updateSyncStatus("online");
-    } catch (err) {
-      console.error("Sync failed:", err);
-      updateSyncStatus("offline");
-    }
+    updateSyncStatus("online");
   }
 }
 
@@ -229,23 +193,42 @@ function updateSyncStatus(status) {
 
 function createCategory(name) {
   if (!name) return;
-  if (state.categories[name]) return;
+  const isImportant = name.startsWith('*');
+  const cleanName = name.replace(/^\*+/, '').trim();
+  if (!cleanName) return;
+  if (state.categories[cleanName]) return;
 
-  state.categories[name] = [];
-  state.categoryOrder.push(name);
-  state.active = name;
+  state.categories[cleanName] = [];
+  state.categoryOrder.push(cleanName);
+  state.active = cleanName;
+  if (isImportant) {
+    state.importantCategories[cleanName] = true;
+  }
   saveAndSync();
+  if (isOnlineMode && session) {
+    syncCategoryOrder(session, state.categoryOrder).catch(console.error);
+    if (isImportant) {
+      markCategoryImportant(session, cleanName).catch(console.error);
+    }
+  }
   render();
 }
 
 function deleteCategory(name) {
   if (!confirm("Delete this category?")) return;
 
-  delete state.categories[name];
-  delete state.unopenedCategories[name];
-  state.categoryOrder = state.categoryOrder.filter(n => n !== name);
+  const deletedName = name;
+  delete state.categories[deletedName];
+  delete state.unopenedCategories[deletedName];
+  delete state.importantCategories[deletedName];
+  state.categoryOrder = state.categoryOrder.filter(n => n !== deletedName);
   state.active = state.categoryOrder[0] || null;
   saveAndSync();
+  if (isOnlineMode && session) {
+    clearCategoryRemote(session, deletedName).catch(console.error);
+    deleteCategoryOrder(session, deletedName).catch(console.error);
+    unmarkCategoryImportant(session, deletedName).catch(console.error);
+  }
   render();
 }
 
@@ -258,9 +241,16 @@ function renameCategory(oldName, newName) {
     state.unopenedCategories[newName] = true;
     delete state.unopenedCategories[oldName];
   }
+  if (state.importantCategories[oldName]) {
+    state.importantCategories[newName] = true;
+    delete state.importantCategories[oldName];
+  }
   state.categoryOrder = state.categoryOrder.map(n => n === oldName ? newName : n);
   state.active = newName;
   saveAndSync();
+  if (isOnlineMode && session) {
+    renameCategoryRemote(session, oldName, newName).catch(console.error);
+  }
   render();
 }
 
@@ -278,14 +268,24 @@ function addBarcode(value) {
   }
 
   list.push(value);
+  delete state.copiedBarcodes[value];
   saveAndSync();
+  if (isOnlineMode && session) {
+    addBarcodeRemote(session, state.active, value).catch(console.error);
+    unmarkBarcodeCopied(session, value).catch(console.error);
+  }
   render();
 }
 
 function removeBarcode(value) {
   const list = state.categories[state.active];
   state.categories[state.active] = list.filter(v => v !== value);
+  delete state.copiedBarcodes[value];
   saveAndSync();
+  if (isOnlineMode && session) {
+    removeBarcodeRemote(session, state.active, value).catch(console.error);
+    unmarkBarcodeCopied(session, value).catch(console.error);
+  }
   render();
 }
 
@@ -293,6 +293,9 @@ function copyToClipboard(text) {
   navigator.clipboard.writeText(text);
   state.copiedBarcodes[text] = true;
   saveState();
+  if (isOnlineMode && session) {
+    copyBarcodeRemote(session, text).catch(console.error);
+  }
   render();
   showToast("Copied");
 }
@@ -383,6 +386,9 @@ function handleDrop(e) {
     state.categoryOrder.splice(dropIndex, 0, movedItem);
     
     saveAndSync();
+    if (isOnlineMode && session) {
+      syncCategoryOrder(session, state.categoryOrder).catch(console.error);
+    }
     renderCategories();
   }
   return false;
@@ -1249,7 +1255,17 @@ function addSelectedBarcodes() {
       categoriesToCreate.push(tableName);
       state.categories[tableName] = [];
       state.categoryOrder.push(tableName);
+      if (isOnlineMode && session) {
+        syncCategoryOrder(session, state.categoryOrder).catch(console.error);
+      }
     }
+    barcodes.forEach(b => {
+      delete state.copiedBarcodes[b];
+      if (isOnlineMode && session) {
+        addBarcodeRemote(session, tableName, b).catch(console.error);
+        unmarkBarcodeCopied(session, b).catch(console.error);
+      }
+    });
     state.categories[tableName].push(...barcodes);
   });
 

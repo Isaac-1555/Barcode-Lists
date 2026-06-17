@@ -120,9 +120,41 @@ async function syncImportantCategories(session) {
   return important;
 }
 
-async function syncFromRemote(session) {
+async function markCategoryImportant(session, categoryName) {
+  await fetch(
+    `${SUPABASE_URL}/rest/v1/important_categories?on_conflict=store_id,category_name`,
+    {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'resolution=merge-duplicates'
+      },
+      body: JSON.stringify({
+        store_id: session.storeId,
+        category_name: categoryName
+      })
+    }
+  );
+}
+
+async function unmarkCategoryImportant(session, categoryName) {
+  await fetch(
+    `${SUPABASE_URL}/rest/v1/important_categories?store_id=eq.${session.storeId}&category_name=eq.${encodeURIComponent(categoryName)}`,
+    {
+      method: 'DELETE',
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+      }
+    }
+  );
+}
+
+async function fetchCategoryOrder(session) {
   const response = await fetch(
-    `${SUPABASE_URL}/rest/v1/barcodes?store_id=eq.${session.storeId}&select=*&order=created_at`,
+    `${SUPABASE_URL}/rest/v1/category_order?store_id=eq.${session.storeId}&select=category_name,position&order=position.asc`,
     {
       headers: {
         'apikey': SUPABASE_ANON_KEY,
@@ -131,26 +163,156 @@ async function syncFromRemote(session) {
     }
   );
 
-  if (!response.ok) {
-    throw new Error('Failed to fetch data');
-  }
+  if (!response.ok) return [];
+  return await response.json();
+}
 
-  const barcodes = await response.json();
-
-  const categories = {};
-  const categoryOrder = [];
-
-  barcodes.forEach(b => {
-    if (!categories[b.category_name]) {
-      categories[b.category_name] = [];
-      categoryOrder.push(b.category_name);
+async function syncCategoryOrder(session, categoryOrder) {
+  await fetch(
+    `${SUPABASE_URL}/rest/v1/category_order?store_id=eq.${session.storeId}`,
+    {
+      method: 'DELETE',
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+      }
     }
-    if (!categories[b.category_name].includes(b.barcode_value)) {
-      categories[b.category_name].push(b.barcode_value);
-    }
+  );
+
+  if (categoryOrder.length === 0) return;
+
+  const insertData = categoryOrder.map((name, index) => ({
+    store_id: session.storeId,
+    category_name: name,
+    position: index
+  }));
+
+  await fetch(`${SUPABASE_URL}/rest/v1/category_order`, {
+    method: 'POST',
+    headers: {
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      'Content-Type': 'application/json',
+      'Prefer': 'return=minimal'
+    },
+    body: JSON.stringify(insertData)
   });
+}
 
-  const commentsResponse = await fetch(
+async function deleteCategoryOrder(session, categoryName) {
+  await fetch(
+    `${SUPABASE_URL}/rest/v1/category_order?store_id=eq.${session.storeId}&category_name=eq.${encodeURIComponent(categoryName)}`,
+    {
+      method: 'DELETE',
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+      }
+    }
+  );
+}
+
+async function fetchCopiedBarcodes(session) {
+  const response = await fetch(
+    `${SUPABASE_URL}/rest/v1/copied_barcodes?store_id=eq.${session.storeId}&select=barcode_value&copied=eq.true`,
+    {
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+      }
+    }
+  );
+
+  if (!response.ok) return {};
+  const data = await response.json();
+  const copied = {};
+  data.forEach(row => {
+    copied[row.barcode_value] = true;
+  });
+  return copied;
+}
+
+async function copyBarcodeRemote(session, barcodeValue) {
+  await fetch(
+    `${SUPABASE_URL}/rest/v1/copied_barcodes?on_conflict=store_id,barcode_value`,
+    {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'resolution=merge-duplicates'
+      },
+      body: JSON.stringify({
+        store_id: session.storeId,
+        barcode_value: barcodeValue,
+        copied: true
+      })
+    }
+  );
+}
+
+async function unmarkBarcodeCopied(session, barcodeValue) {
+  await fetch(
+    `${SUPABASE_URL}/rest/v1/copied_barcodes?store_id=eq.${session.storeId}&barcode_value=eq.${encodeURIComponent(barcodeValue)}`,
+    {
+      method: 'DELETE',
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+      }
+    }
+  );
+}
+
+async function addBarcodeRemote(session, categoryName, barcodeValue) {
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/barcodes`, {
+    method: 'POST',
+    headers: {
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      'Content-Type': 'application/json',
+      'Prefer': 'return=minimal'
+    },
+    body: JSON.stringify({
+      store_id: session.storeId,
+      category_name: categoryName,
+      barcode_value: barcodeValue
+    })
+  });
+  return response.ok;
+}
+
+async function removeBarcodeRemote(session, categoryName, barcodeValue) {
+  const response = await fetch(
+    `${SUPABASE_URL}/rest/v1/barcodes?store_id=eq.${session.storeId}&category_name=eq.${encodeURIComponent(categoryName)}&barcode_value=eq.${encodeURIComponent(barcodeValue)}`,
+    {
+      method: 'DELETE',
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+      }
+    }
+  );
+  return response.ok;
+}
+
+async function clearCategoryRemote(session, categoryName) {
+  await fetch(
+    `${SUPABASE_URL}/rest/v1/barcodes?store_id=eq.${session.storeId}&category_name=eq.${encodeURIComponent(categoryName)}`,
+    {
+      method: 'DELETE',
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+      }
+    }
+  );
+}
+
+
+async function fetchComments(session) {
+  const response = await fetch(
     `${SUPABASE_URL}/rest/v1/barcode_comments?store_id=eq.${session.storeId}&select=barcode_value,comment`,
     {
       headers: {
@@ -160,22 +322,133 @@ async function syncFromRemote(session) {
     }
   );
 
-  const commentsData = await commentsResponse.json();
+  if (!response.ok) return {};
+
+  const data = await response.json();
   const comments = {};
-  commentsData.forEach(c => {
+  data.forEach(c => {
     if (c.comment) {
       comments[c.barcode_value] = c.comment;
     }
   });
+  return comments;
+}
 
+async function renameCategoryRemote(session, oldName, newName) {
+  const response = await fetch(
+    `${SUPABASE_URL}/rest/v1/barcodes?store_id=eq.${session.storeId}&category_name=eq.${encodeURIComponent(oldName)}`,
+    {
+      method: 'PATCH',
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal'
+      },
+      body: JSON.stringify({
+        category_name: newName
+      })
+    }
+  );
+
+  await fetch(
+    `${SUPABASE_URL}/rest/v1/category_order?store_id=eq.${session.storeId}&category_name=eq.${encodeURIComponent(oldName)}`,
+    {
+      method: 'PATCH',
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal'
+      },
+      body: JSON.stringify({
+        category_name: newName
+      })
+    }
+  );
+
+  const importantResp = await fetch(
+    `${SUPABASE_URL}/rest/v1/important_categories?store_id=eq.${session.storeId}&category_name=eq.${encodeURIComponent(oldName)}&select=id`,
+    {
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+      }
+    }
+  );
+  const importantData = await importantResp.json();
+  if (importantData && importantData.length > 0) {
+    await fetch(
+      `${SUPABASE_URL}/rest/v1/important_categories?store_id=eq.${session.storeId}&category_name=eq.${encodeURIComponent(oldName)}`,
+      {
+        method: 'PATCH',
+        headers: {
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal'
+        },
+        body: JSON.stringify({
+          category_name: newName
+        })
+      }
+    );
+  }
+
+  return response.ok;
+}
+
+async function syncFromRemote(session) {
+  const barcodesResponse = await fetch(
+    `${SUPABASE_URL}/rest/v1/barcodes?store_id=eq.${session.storeId}&select=*&order=created_at`,
+    {
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+      }
+    }
+  );
+
+  if (!barcodesResponse.ok) {
+    throw new Error('Failed to fetch data');
+  }
+
+  const barcodes = await barcodesResponse.json();
+
+  const categories = {};
+  const categoryOrderFromData = [];
+
+  barcodes.forEach(b => {
+    if (!categories[b.category_name]) {
+      categories[b.category_name] = [];
+      categoryOrderFromData.push(b.category_name);
+    }
+    if (!categories[b.category_name].includes(b.barcode_value)) {
+      categories[b.category_name].push(b.barcode_value);
+    }
+  });
+
+  const comments = await fetchComments(session);
   const importantCategories = await syncImportantCategories(session);
+  const copiedBarcodes = await fetchCopiedBarcodes(session);
+  const categoryOrderRows = await fetchCategoryOrder(session);
+
+  const categoryOrder = categoryOrderRows.length > 0
+    ? categoryOrderRows.map(r => r.category_name)
+    : categoryOrderFromData;
+
+  const missingInOrder = categoryOrderFromData.filter(n => !categoryOrder.includes(n));
+  missingInOrder.forEach(n => categoryOrder.push(n));
+
+  const filteredOrder = categoryOrder.filter(n => categories[n]);
 
   return {
-    categoryOrder,
+    categoryOrder: filteredOrder,
     categories,
     comments,
     importantCategories,
-    active: categoryOrder[0] || null
+    copiedBarcodes,
+    active: filteredOrder[0] || null
   };
 }
 
@@ -233,6 +506,56 @@ async function syncToRemote(session, state) {
 
     if (!response.ok) {
       throw new Error('Failed to save data');
+    }
+  }
+
+  await syncCategoryOrder(session, state.categoryOrder);
+
+  const currentImportant = Object.keys(state.importantCategories || {});
+  const allImportantResp = await fetch(
+    `${SUPABASE_URL}/rest/v1/important_categories?store_id=eq.${session.storeId}&select=category_name`,
+    {
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+      }
+    }
+  );
+  if (allImportantResp.ok) {
+    const allImportant = await allImportantResp.json();
+    const existingImportantNames = allImportant.map(r => r.category_name);
+    const toRemove = existingImportantNames.filter(n => !currentImportant.includes(n));
+    const toAdd = currentImportant.filter(n => !existingImportantNames.includes(n));
+
+    for (const name of toRemove) {
+      await unmarkCategoryImportant(session, name);
+    }
+    for (const name of toAdd) {
+      await markCategoryImportant(session, name);
+    }
+  }
+
+  const copiedBarcodesResponse = await fetch(
+    `${SUPABASE_URL}/rest/v1/copied_barcodes?store_id=eq.${session.storeId}&select=barcode_value`,
+    {
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+      }
+    }
+  );
+  if (copiedBarcodesResponse.ok) {
+    const allCopied = await copiedBarcodesResponse.json();
+    const existingCopied = allCopied.map(r => r.barcode_value);
+    const currentCopied = Object.keys(state.copiedBarcodes || {});
+    const toUncopy = existingCopied.filter(v => !currentCopied.includes(v));
+    const toCopy = currentCopied.filter(v => !existingCopied.includes(v));
+
+    for (const value of toUncopy) {
+      await unmarkBarcodeCopied(session, value);
+    }
+    for (const value of toCopy) {
+      await copyBarcodeRemote(session, value);
     }
   }
 }
