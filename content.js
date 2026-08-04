@@ -86,7 +86,7 @@ async function startAutoAdd(barcodes, config, category) {
         return;
       }
       setInputValue(inputEl, barcode);
-      await sleep(200);
+      await sleep(config.delayMs);
 
       const searchBtn = getByXPath(config.searchButtonXPath);
       if (!searchBtn) {
@@ -94,7 +94,7 @@ async function startAutoAdd(barcodes, config, category) {
         return;
       }
       searchBtn.click();
-      await sleep(500);
+      await sleep(config.delayMs);
 
       const checkboxEl = await waitForElement(config.checkboxXPath, config.timeoutMs);
       if (!checkboxEl) {
@@ -102,7 +102,7 @@ async function startAutoAdd(barcodes, config, category) {
         return;
       }
       checkboxEl.click();
-      await sleep(300);
+      await sleep(config.delayMs);
 
       const addBtn = getByXPath(config.addButtonXPath);
       if (!addBtn) {

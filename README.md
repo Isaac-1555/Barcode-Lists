@@ -14,6 +14,7 @@ A Chrome Extension (Manifest V3) for retail and store employees to store, organi
 - One-click automation that enters every barcode in the active list into an external site, one by one
 - Configurable XPath selectors (search box, search button, result checkbox, add button) in Settings
 - Runs on the currently active browser tab via the content script
+- 1.5-second delay after each automation step (typing, searching, checking, adding) so the page fully loads before the next step
 - Adjustable delay between barcodes and result-wait timeout
 - Live progress readout (`3/50: 012345678901`) and a stop button that halts mid-loop
 - Stops and reports the barcode if any element can't be found
