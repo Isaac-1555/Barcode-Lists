@@ -10,6 +10,14 @@ A Chrome Extension (Manifest V3) for retail and store employees to store, organi
 - Copy barcodes to clipboard with one click
 - Toast notifications for user feedback ("Copied", "Duplicate", etc.)
 
+### Auto-Add Barcodes
+- One-click automation that enters every barcode in the active list into an external site, one by one
+- Configurable XPath selectors (search box, search button, result checkbox, add button) in Settings
+- Runs on the currently active browser tab via the content script
+- Adjustable delay between barcodes and result-wait timeout
+- Live progress readout (`3/50: 012345678901`) and a stop button that halts mid-loop
+- Stops and reports the barcode if any element can't be found
+
 ### Category Organization
 - Create, rename, and delete categories (e.g., "Dairy", "Produce")
 - Drag-and-drop category reordering via HTML5 drag events
@@ -50,6 +58,7 @@ The project is a zero-build-step Chrome Extension using vanilla JavaScript, HTML
 Barcode_saver/
 ├── manifest.json        # Chrome Extension manifest (v3)
 ├── background.js        # Service worker -- enables side panel on icon click
+├── content.js           # Page automation -- overlay + auto-add barcode engine
 ├── popup.html           # Main UI (rendered in Chrome side panel)
 ├── popup.js             # Core application logic (state, rendering, UI events)
 ├── popup.css            # Dark theme styling, animations, layout
@@ -66,7 +75,8 @@ Barcode_saver/
 | File | Role |
 |---|---|
 | `background.js` | Service worker. Sets `chrome.sidePanel` to open when the extension icon is clicked. |
-| `popup.js` | Application core. Manages in-memory state, DOM rendering, category/barcode CRUD, file uploads, drag-and-drop, review modal, and settings. |
+| `popup.js` | Application core. Manages in-memory state, DOM rendering, category/barcode CRUD, file uploads, drag-and-drop, review modal, settings, and auto-add control. |
+| `content.js` | Page automation. Overlay notifications and the auto-add engine that enters barcodes into the active tab via configurable XPath selectors. |
 | `supabase.js` | Data layer. Handles store authentication (`login`/`logout`/`getSession`), connectivity checks (`isOnline`), and bidirectional sync (`syncFromRemote`/`syncToRemote`) via raw `fetch()` calls to Supabase REST. |
 | `openrouter.js` | AI layer. Sends images (base64) or messy text values to the OpenRouter chat completions API for barcode extraction. Also manages API key storage. |
 | `popup.html` | Single-page UI structure: login screen, main app (sidebar + content), toast element, loading overlay, review modal, settings modal. |
@@ -83,7 +93,6 @@ Barcode_saver/
 | OpenRouter AI API | AI-powered barcode extraction (model: `openrouter/free`) |
 | SheetJS (xlsx.js) | Client-side Excel file parsing |
 | Chrome APIs | `chrome.storage.local`, `chrome.storage.session`, `chrome.sidePanel`, `chrome.tabs`, `chrome.runtime` |
-
 ## Data Model
 
 ### Local State (Chrome Storage)
@@ -195,6 +204,13 @@ There is no build step. The extension loads directly from source.
 - Open the settings modal (gear icon) to configure your **OpenRouter API key**
 - The API key is required for AI-powered extraction features (image OCR and Excel cleaning)
 - A validation test confirms the key is valid before saving
+- Configure **Auto-Add XPaths** to automate entering barcodes into an external site
+
+### Auto-Adding Barcodes
+1. Open the external site in a browser tab (the side panel must be on the same window)
+2. In Settings, verify the four XPath selectors: search box, search button, result checkbox, add button
+3. Click the **play button** in the list header to start; it toggles to **stop** while running
+4. For each barcode the extension types it, searches, checks the result, and clicks add before moving to the next
 
 ## API Keys
 

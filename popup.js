@@ -1,4 +1,17 @@
 const storageKey = "barcodeData";
+const autoAddStorageKey = "autoAddConfig";
+
+const DEFAULT_AUTO_ADD_CONFIG = {
+  searchInputXPath: '//*[@id="undefined_input"]',
+  searchButtonXPath: '//*[@id="undefined_rightButton"]',
+  checkboxXPath: '//*[@id="ItemView-select-all"]/span',
+  addButtonXPath: '//*[@id="addSign"]',
+  delayMs: 1500,
+  timeoutMs: 8000
+};
+
+let autoAddConfig = { ...DEFAULT_AUTO_ADD_CONFIG };
+let autoAddRunning = false;
 
 let state = {
   categoryOrder: [],
@@ -134,6 +147,21 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     loadRemoteData().then(() => sendResponse(true));
     return true;
   }
+  if (msg.type === "AUTO_ADD_PROGRESS") {
+    updateAutoAddStatus(`${msg.index}/${msg.total}: ${msg.barcode}`);
+  }
+  if (msg.type === "AUTO_ADD_DONE") {
+    finishAutoAdd(`Done: ${msg.added}/${msg.total}`);
+    showToast(`Auto-added ${msg.added} barcode(s)`);
+  }
+  if (msg.type === "AUTO_ADD_ERROR") {
+    finishAutoAdd(`Stopped at ${msg.barcode}: ${msg.message}`);
+    showToast(msg.message);
+  }
+  if (msg.type === "AUTO_ADD_STOPPED") {
+    finishAutoAdd("Stopped by user");
+    showToast("Auto-add stopped");
+  }
 });
 
 async function loadState() {
@@ -155,6 +183,11 @@ async function loadState() {
   }
   
   isOnlineMode = await isOnline();
+
+  const autoAddResult = await chrome.storage.local.get(autoAddStorageKey);
+  if (autoAddResult[autoAddStorageKey]) {
+    autoAddConfig = { ...DEFAULT_AUTO_ADD_CONFIG, ...autoAddResult[autoAddStorageKey] };
+  }
 }
 
 function saveState() {
@@ -553,6 +586,14 @@ function setupEventListeners() {
   document.getElementById("fileInput").onchange = handleFileUpload;
 
   document.getElementById("settingsBtn").onclick = showSettingsModal;
+
+  document.getElementById("autoAddBtn").onclick = () => {
+    if (autoAddRunning) {
+      stopAutoAdd();
+    } else {
+      startAutoAdd();
+    }
+  };
 
   document.getElementById("closeReviewModal").onclick = closeReviewModal;
   document.getElementById("cancelReviewBtn").onclick = closeReviewModal;
@@ -1294,6 +1335,13 @@ function showSettingsModal() {
     statusEl.className = "api-key-status";
   });
 
+  document.getElementById("autoAddSearchInput").value = autoAddConfig.searchInputXPath || "";
+  document.getElementById("autoAddSearchButton").value = autoAddConfig.searchButtonXPath || "";
+  document.getElementById("autoAddCheckbox").value = autoAddConfig.checkboxXPath || "";
+  document.getElementById("autoAddAddButton").value = autoAddConfig.addButtonXPath || "";
+  document.getElementById("autoAddDelay").value = autoAddConfig.delayMs || "";
+  document.getElementById("autoAddTimeout").value = autoAddConfig.timeoutMs || "";
+
   modal.style.display = "flex";
 }
 
@@ -1305,6 +1353,17 @@ async function saveSettings() {
   const apiKeyInput = document.getElementById("apiKeyInput");
   const statusEl = document.getElementById("apiKeyStatus");
   const apiKey = apiKeyInput.value.trim();
+
+  const newConfig = {
+    searchInputXPath: document.getElementById("autoAddSearchInput").value.trim(),
+    searchButtonXPath: document.getElementById("autoAddSearchButton").value.trim(),
+    checkboxXPath: document.getElementById("autoAddCheckbox").value.trim(),
+    addButtonXPath: document.getElementById("autoAddAddButton").value.trim(),
+    delayMs: parseInt(document.getElementById("autoAddDelay").value) || 1500,
+    timeoutMs: parseInt(document.getElementById("autoAddTimeout").value) || 8000
+  };
+  autoAddConfig = newConfig;
+  chrome.storage.local.set({ [autoAddStorageKey]: autoAddConfig });
 
   statusEl.innerHTML = '<span class="loading-spinner"></span> Testing...';
   statusEl.className = "api-key-status";
@@ -1336,4 +1395,81 @@ async function saveSettings() {
     statusEl.className = "api-key-status success";
     setTimeout(closeSettingsModal, 1000);
   }
+}
+
+async function startAutoAdd() {
+  const barcodes = state.active ? (state.categories[state.active] || []) : [];
+
+  if (barcodes.length === 0) {
+    showToast("No barcodes in this list");
+    return;
+  }
+
+  const missing = [];
+  if (!autoAddConfig.searchInputXPath) missing.push("search box");
+  if (!autoAddConfig.searchButtonXPath) missing.push("search button");
+  if (!autoAddConfig.checkboxXPath) missing.push("checkbox");
+  if (!autoAddConfig.addButtonXPath) missing.push("add button");
+  if (missing.length > 0) {
+    showToast("Missing XPath: " + missing.join(", ") + ". Check Settings");
+    return;
+  }
+
+  const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+  const tab = tabs[0];
+  if (!tab || tab.id === undefined) {
+    showToast("No active tab found");
+    return;
+  }
+
+  setAutoAddRunning(true);
+
+  try {
+    await chrome.tabs.sendMessage(tab.id, {
+      type: "AUTO_ADD_START",
+      barcodes: barcodes,
+      config: autoAddConfig,
+      category: state.active
+    });
+  } catch (err) {
+    setAutoAddRunning(false);
+    updateAutoAddStatus("No content script on this page");
+    showToast("Open the target site tab first");
+  }
+}
+
+async function stopAutoAdd() {
+  const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+  const tab = tabs[0];
+  if (tab && tab.id !== undefined) {
+    chrome.tabs.sendMessage(tab.id, { type: "AUTO_ADD_STOP" }).catch(() => {});
+  }
+}
+
+function setAutoAddRunning(running) {
+  autoAddRunning = running;
+  const btn = document.getElementById("autoAddBtn");
+  btn.classList.toggle("running", running);
+  btn.title = running ? "Stop auto-add" : "Auto Add all barcodes";
+  if (running) {
+    btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>';
+  } else {
+    btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>';
+  }
+}
+
+function updateAutoAddStatus(text) {
+  const el = document.getElementById("autoAddStatus");
+  el.textContent = text;
+  el.style.display = "flex";
+}
+
+function finishAutoAdd(text) {
+  setAutoAddRunning(false);
+  updateAutoAddStatus(text);
+  setTimeout(() => {
+    if (!autoAddRunning) {
+      document.getElementById("autoAddStatus").style.display = "none";
+    }
+  }, 4000);
 }
