@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Automation Test Site</title>
+<style>
+  body {
+    font-family: -apple-system, "Segoe UI", sans-serif;
+    max-width: 720px;
+    margin: 24px auto;
+    padding: 0 16px;
+    color: #1a1a1a;
+  }
+  h1 { font-size: 20px; }
+  h2 { font-size: 15px; margin-top: 28px; }
+  .panel {
+    border: 1px solid #d0d0d0;
+    border-radius: 8px;
+    padding: 14px;
+    margin-top: 8px;
+    background: #fafafa;
+  }
+  button {
+    font-size: 13px;
+    padding: 7px 14px;
+    border: 1px solid #b0b0b0;
+    border-radius: 6px;
+    background: #fff;
+    cursor: pointer;
+  }
+  button:active { background: #eee; }
+  input[type="text"] {
+    font-size: 13px;
+    padding: 7px;
+    border: 1px solid #b0b0b0;
+    border-radius: 6px;
+    width: 220px;
+  }
+  .row { margin: 10px 0; display: flex; align-items: center; gap: 10px; }
+  .log {
+    font-family: "SF Mono", Menlo, monospace;
+    font-size: 12px;
+    background: #111;
+    color: #4f4;
+    padding: 12px;
+    border-radius: 8px;
+    height: 220px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    line-height: 1.5;
+  }
+  .log .err { color: #f66; }
+  .badge {
+    display: inline-block;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: #ddd;
+    color: #333;
+  }
+  .badge.on { background: #4caf50; color: #fff; }
+</style>
+</head>
+<body>
+
+<h1>Automation Test Site</h1>
+<p>Mirrors the external site DOM so the extension's XPath selectors resolve.</p>
+
+<div class="panel">
+  <div class="row">
+    <span class="badge" id="batchStatusBadge">batch idle</span>
+    <strong>Batch Setup</strong>
+  </div>
+
+  <div id="batchFilter">
+    <div><span>row 1</span></div>
+    <div>
+      <div>
+        <div>
+          <cui-toolbar>
+            <div>
+              <cui-toolbar-group>
+                <div>
+                  <cui-button>
+                    <span>
+                      <button type="button" data-action="open-batch">Create batch</button>
+                    </span>
+                  </cui-button>
+                </div>
+              </cui-toolbar-group>
+            </div>
+          </cui-toolbar>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="batchModal" class="row" hidden>
+    <input type="text" id="undefined" placeholder="Batch name">
+    <button type="button" id="copyId_button" data-action="open-signs">Add signs</button>
+    <div id="signsMenu" hidden>
+      <div id="actionDropDown" data-action="pick-item-library">
+        <span>Item Library</span>
+      </div>
+      <div id="actionDropDown-other"><span>Other option (should NOT be picked)</span></div>
+    </div>
+    <span class="badge on" id="batchCreatedBadge" hidden>batch created</span>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="row">
+    <span class="badge" id="searchStatusBadge">idle</span>
+    <strong>Item Search</strong>
+  </div>
+
+  <div class="row">
+    <input type="text" id="undefined_input" placeholder="Scan or search barcode">
+    <button type="button" id="undefined_rightButton" data-action="search">Search</button>
+  </div>
+
+  <div id="resultsArea" hidden>
+    <div class="row" id="resultRow">
+      <div id="ItemView-select-all">
+        <span data-action="toggle-check" class="checkmark">&#9744;</span>
+      </div>
+      <span>Result item</span>
+    </div>
+    <div class="row">
+      <button type="button" id="addSign" data-action="add">Add</button>
+    </div>
+  </div>
+</div>
+
+<div class="row" style="justify-content:space-between;">
+  <button type="button" id="resetBtn">Reset all state</button>
+  <span class="badge">added: <span id="addedCount">0</span></span>
+</div>
+
+<div class="panel">
+  <h2>Action Log</h2>
+  <div class="log" id="log"></div>
+</div>
+
+<script>
+(function () {
+  var logEl = document.getElementById("log");
+  var addedCount = 0;
+  var batchDone = false;
+
+  function log(msg, isErr) {
+    var t = new Date().toLocaleTimeString();
+    var line = document.createElement("div");
+    line.textContent = "[" + t + "] " + msg;
+    if (isErr) line.classList.add("err");
+    logEl.appendChild(line);
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  function setBadge(id, text, on) {
+    var b = document.getElementById(id);
+    b.textContent = text;
+    b.classList.toggle("on", !!on);
+  }
+
+  function findTarget(el) {
+    return el.hasAttribute("data-action") ? el : el.closest("[data-action]");
+  }
+
+  function picker({ inputId, openBtnId, menuId, itemSel }) {
+    var input = document.getElementById(inputId);
+    var openBtn = document.getElementById(openBtnId);
+    var menu = document.getElementById(menuId);
+    var state = { last: "" };
+
+    openBtn.addEventListener("click", function () {
+      log("clicked: " + openBtnId + " (dropdown toggled)");
+      menu.hidden = !menu.hidden;
+      state.last = input ? input.value : "";
+    });
+
+    menu.addEventListener("click", function (ev) {
+      var t = findTarget(ev.target);
+      if (!t) return;
+      var item = t.closest(itemSel);
+      if (item) {
+        var text = item.textContent.trim();
+        log("picked option: " + text);
+        menu.hidden = true;
+        openBtn.textContent = "Add signs: " + text;
+      }
+    });
+
+    return state;
+  }
+
+  function wirePicker(inputId, openBtnId, menuId, itemSel, onPick) {
+    var menu = document.getElementById(menuId);
+    menu.addEventListener("click", function (ev) {
+      var t = findTarget(ev.target);
+      if (!t) return;
+      var item = t.closest(itemSel);
+      if (item) {
+        log("picked option: " + item.textContent.trim());
+        menu.hidden = true;
+        if (onPick) onPick(item);
+      }
+    });
+  }
+
+  // batch modal reveal
+  document.addEventListener("click", function (ev) {
+    var t = findTarget(ev.target);
+    if (!t) return;
+    var action = t.getAttribute("data-action");
+    if (!action) return;
+
+    switch (action) {
+      case "open-batch":
+        document.getElementById("batchModal").hidden = false;
+        log("opened batch modal");
+        setBadge("batchStatusBadge", "entering name", true);
+        break;
+      case "open-signs":
+        break; // handled by wirePicker below
+      case "pick-item-library":
+        break; // handled by wirePicker below
+      case "search":
+        doSearch();
+        break;
+      case "toggle-check":
+        toggleCheck(t);
+        break;
+      case "add":
+        doAdd();
+        break;
+    }
+  });
+
+  wirePicker("undefined", "copyId_button", "signsMenu",
+    "[data-action='pick-item-library']", function () {
+      setBadge("batchStatusBadge", "item library set", true);
+    });
+
+  document.getElementById("undefined").addEventListener("input", function (ev) {
+    if (!batchDone && ev.target.value.trim()) {
+      setBadge("batchStatusBadge", "name typed", true);
+    }
+  });
+
+  function doSearch() {
+    var input = document.getElementById("undefined_input");
+    var v = input.value.trim();
+    if (!v) {
+      log("search attempted with empty input", true);
+      return;
+    }
+    document.getElementById("resultsArea").hidden = false;
+    var check = document.querySelector("#ItemView-select-all span");
+    check.innerHTML = "&#9744;";
+    check.dataset.checked = "false";
+    log("searched: " + v);
+    setBadge("searchStatusBadge", "result found", true);
+  }
+
+  function toggleCheck(el) {
+    var checked = el.dataset.checked === "true";
+    checked = !checked;
+    el.dataset.checked = String(checked);
+    el.innerHTML = checked ? "&#9745;" : "&#9744;";
+    log(checked ? "checkbox checked" : "checkbox unchecked");
+  }
+
+  function doAdd() {
+    var check = document.querySelector("#ItemView-select-all span");
+    if (check.dataset.checked === "true") {
+      addedCount++;
+      document.getElementById("addedCount").textContent = addedCount;
+      log("ADDED barcode (count " + addedCount + ")");
+    } else {
+      log("add pressed but checkbox not checked", true);
+    }
+  }
+
+  document.getElementById("resetBtn").addEventListener("click", function () {
+    addedCount = 0;
+    batchDone = false;
+    document.getElementById("addedCount").textContent = "0";
+    document.getElementById("batchModal").hidden = true;
+    document.getElementById("batchCreatedBadge").hidden = true;
+    document.getElementById("resultsArea").hidden = true;
+    document.getElementById("copyId_button").textContent = "Add signs";
+    document.getElementById("undefined").value = "";
+    document.getElementById("undefined_input").value = "";
+    setBadge("batchStatusBadge", "batch idle", false);
+    setBadge("searchStatusBadge", "idle", false);
+    logEl.innerHTML = "";
+    log("state reset");
+  });
+
+  log("test site ready — click batch auto-add in the extension to start");
+})();
+</script>
+</body>
+</html>
