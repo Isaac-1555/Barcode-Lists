@@ -50,6 +50,9 @@
             <button id="autoAddBtn" title="Auto Add all barcodes" class="auto-add-btn">
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
             </button>
+            <button id="batchAddBtn" title="Create batch and auto-add" class="batch-add-btn">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3H8"/><path d="m15.007 5.008 3.987 3.986"/><path d="M20 15v4"/><path d="M21.174 6.813a2.82 2.82 0 0 0-3.986-3.987L3.842 16.175a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="M22 17h-4"/><path d="M4 5v4"/><path d="M6 7H2"/><path d="M9 2v2"/></svg>
+            </button>
           </div>
           <div id="autoAddStatus" class="auto-add-status" style="display: none;"></div>
         </div>
@@ -130,6 +133,13 @@
           </div>
         </div>
         <p class="settings-hint">These run on the active tab. Each barcode is typed, searched, checkbox clicked, then added.</p>
+        <hr class="settings-divider" />
+        <label class="settings-label">Batch Setup XPath Settings</label>
+        <input type="text" id="batchCreateInput" placeholder="Create batch button XPath" class="settings-input" />
+        <input type="text" id="batchNameInput" placeholder="Batch name box XPath" class="settings-input" />
+        <input type="text" id="batchSignsDropdown" placeholder="Add signs dropdown XPath" class="settings-input" />
+        <input type="text" id="batchItemLibrary" placeholder="Item Library option XPath" class="settings-input" />
+        <p class="settings-hint">Runs once before the loop: create batch, name it after the list, open Add signs, pick Item Library.</p>
       </div>
       <div class="modal-footer">
         <button id="saveSettingsBtn" class="add-btn">Save</button>

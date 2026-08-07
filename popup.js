@@ -6,12 +6,17 @@ const DEFAULT_AUTO_ADD_CONFIG = {
   searchButtonXPath: '//*[@id="undefined_rightButton"]',
   checkboxXPath: '//*[@id="ItemView-select-all"]/span',
   addButtonXPath: '//*[@id="addSign"]',
+  batchCreateButtonXPath: '//*[@id="batchFilter"]/div[2]/div/div[1]/cui-toolbar/div/cui-toolbar-group[1]/div/cui-button/span/button',
+  batchNameInputXPath: '//*[@id="undefined"]',
+  signsDropdownXPath: '//*[@id="copyId_button"]',
+  itemLibraryOptionXPath: '//*[@id="actionDropDown"]/span',
   delayMs: 1500,
   timeoutMs: 8000
 };
 
 let autoAddConfig = { ...DEFAULT_AUTO_ADD_CONFIG };
 let autoAddRunning = false;
+let autoAddMode = null;
 
 let state = {
   categoryOrder: [],
@@ -592,6 +597,14 @@ function setupEventListeners() {
       stopAutoAdd();
     } else {
       startAutoAdd();
+    }
+  };
+
+  document.getElementById("batchAddBtn").onclick = () => {
+    if (autoAddRunning) {
+      stopAutoAdd();
+    } else {
+      startBatchAdd();
     }
   };
 
@@ -1339,6 +1352,10 @@ function showSettingsModal() {
   document.getElementById("autoAddSearchButton").value = autoAddConfig.searchButtonXPath || "";
   document.getElementById("autoAddCheckbox").value = autoAddConfig.checkboxXPath || "";
   document.getElementById("autoAddAddButton").value = autoAddConfig.addButtonXPath || "";
+  document.getElementById("batchCreateInput").value = autoAddConfig.batchCreateButtonXPath || "";
+  document.getElementById("batchNameInput").value = autoAddConfig.batchNameInputXPath || "";
+  document.getElementById("batchSignsDropdown").value = autoAddConfig.signsDropdownXPath || "";
+  document.getElementById("batchItemLibrary").value = autoAddConfig.itemLibraryOptionXPath || "";
   document.getElementById("autoAddDelay").value = autoAddConfig.delayMs || "";
   document.getElementById("autoAddTimeout").value = autoAddConfig.timeoutMs || "";
 
@@ -1359,6 +1376,10 @@ async function saveSettings() {
     searchButtonXPath: document.getElementById("autoAddSearchButton").value.trim(),
     checkboxXPath: document.getElementById("autoAddCheckbox").value.trim(),
     addButtonXPath: document.getElementById("autoAddAddButton").value.trim(),
+    batchCreateButtonXPath: document.getElementById("batchCreateInput").value.trim(),
+    batchNameInputXPath: document.getElementById("batchNameInput").value.trim(),
+    signsDropdownXPath: document.getElementById("batchSignsDropdown").value.trim(),
+    itemLibraryOptionXPath: document.getElementById("batchItemLibrary").value.trim(),
     delayMs: parseInt(document.getElementById("autoAddDelay").value) || 1500,
     timeoutMs: parseInt(document.getElementById("autoAddTimeout").value) || 8000
   };
@@ -1422,7 +1443,7 @@ async function startAutoAdd() {
     return;
   }
 
-  setAutoAddRunning(true);
+  setAutoAddRunning(true, "simple");
 
   try {
     await chrome.tabs.sendMessage(tab.id, {
@@ -1430,6 +1451,52 @@ async function startAutoAdd() {
       barcodes: barcodes,
       config: autoAddConfig,
       category: state.active
+    });
+  } catch (err) {
+    setAutoAddRunning(false);
+    updateAutoAddStatus("No content script on this page");
+    showToast("Open the target site tab first");
+  }
+}
+
+async function startBatchAdd() {
+  const barcodes = state.active ? (state.categories[state.active] || []) : [];
+
+  if (barcodes.length === 0) {
+    showToast("No barcodes in this list");
+    return;
+  }
+
+  const missing = [];
+  if (!autoAddConfig.batchCreateButtonXPath) missing.push("create batch");
+  if (!autoAddConfig.batchNameInputXPath) missing.push("batch name box");
+  if (!autoAddConfig.signsDropdownXPath) missing.push("add signs dropdown");
+  if (!autoAddConfig.itemLibraryOptionXPath) missing.push("item library");
+  if (!autoAddConfig.searchInputXPath) missing.push("search box");
+  if (!autoAddConfig.searchButtonXPath) missing.push("search button");
+  if (!autoAddConfig.checkboxXPath) missing.push("checkbox");
+  if (!autoAddConfig.addButtonXPath) missing.push("add button");
+  if (missing.length > 0) {
+    showToast("Missing XPath: " + missing.join(", ") + ". Check Settings");
+    return;
+  }
+
+  const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+  const tab = tabs[0];
+  if (!tab || tab.id === undefined) {
+    showToast("No active tab found");
+    return;
+  }
+
+  setAutoAddRunning(true, "batch");
+
+  try {
+    await chrome.tabs.sendMessage(tab.id, {
+      type: "AUTO_ADD_BATCH_START",
+      barcodes: barcodes,
+      config: autoAddConfig,
+      category: state.active,
+      batchName: state.active
     });
   } catch (err) {
     setAutoAddRunning(false);
@@ -1446,16 +1513,23 @@ async function stopAutoAdd() {
   }
 }
 
-function setAutoAddRunning(running) {
+function setAutoAddRunning(running, mode) {
   autoAddRunning = running;
-  const btn = document.getElementById("autoAddBtn");
-  btn.classList.toggle("running", running);
-  btn.title = running ? "Stop auto-add" : "Auto Add all barcodes";
-  if (running) {
-    btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>';
-  } else {
-    btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>';
-  }
+  if (mode) autoAddMode = mode;
+
+  const stopIcon = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>';
+  const playIcon = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>';
+  const sparklesIcon = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3H8"/><path d="m15.007 5.008 3.987 3.986"/><path d="M20 15v4"/><path d="M21.174 6.813a2.82 2.82 0 0 0-3.986-3.987L3.842 16.175a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="M22 17h-4"/><path d="M4 5v4"/><path d="M6 7H2"/><path d="M9 2v2"/></svg>';
+
+  const simpleBtn = document.getElementById("autoAddBtn");
+  const batchBtn = document.getElementById("batchAddBtn");
+
+  simpleBtn.classList.toggle("running", running && autoAddMode === "simple");
+  batchBtn.classList.toggle("running", running && autoAddMode === "batch");
+  simpleBtn.title = running && autoAddMode === "simple" ? "Stop auto-add" : "Auto Add all barcodes";
+  batchBtn.title = running && autoAddMode === "batch" ? "Stop batch add" : "Create batch and auto-add";
+  simpleBtn.innerHTML = running && autoAddMode === "simple" ? stopIcon : playIcon;
+  batchBtn.innerHTML = running && autoAddMode === "batch" ? stopIcon : sparklesIcon;
 }
 
 function updateAutoAddStatus(text) {

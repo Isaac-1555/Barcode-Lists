@@ -182,6 +182,22 @@ body {
   background: #b91c1c;
 }
 
+#batchAddBtn {
+  background: #1e1b4b;
+}
+
+#batchAddBtn:hover {
+  background: #4338ca;
+}
+
+#batchAddBtn.running {
+  background: #7f1d1d;
+}
+
+#batchAddBtn.running:hover {
+  background: #b91c1c;
+}
+
 .auto-add-status {
   font-size: 11px;
   color: #a1a1aa;

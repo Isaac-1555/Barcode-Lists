@@ -5,6 +5,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === "AUTO_ADD_START") {
     startAutoAdd(msg.barcodes, msg.config, msg.category);
   }
+  if (msg.type === "AUTO_ADD_BATCH_START") {
+    startAutoAddBatch(msg.barcodes, msg.config, msg.category, msg.batchName);
+  }
   if (msg.type === "AUTO_ADD_STOP") {
     stopAutoAdd();
   }
@@ -67,58 +70,28 @@ function sendToExtension(msg) {
   }
 }
 
-async function startAutoAdd(barcodes, config, category) {
-  if (autoAddState) return;
-  autoAddState = { stopped: false };
+function startAutoAdd(barcodes, config, category) {
+  runAutoAddFlow(barcodes, config, null);
+}
 
-  let added = 0;
+function startAutoAddBatch(barcodes, config, category, batchName) {
+  runAutoAddFlow(barcodes, config, () => doBatchSetup(config, batchName));
+}
+
+async function runAutoAddFlow(barcodes, config, preSetup) {
+  if (autoAddState) return;
+  autoAddState = { stopped: false, skipLoop: false };
 
   try {
-    for (let i = 0; i < barcodes.length; i++) {
-      if (autoAddState.stopped) break;
-      const barcode = barcodes[i];
-
-      sendToExtension({ type: "AUTO_ADD_PROGRESS", index: i + 1, total: barcodes.length, barcode });
-
-      const inputEl = getByXPath(config.searchInputXPath);
-      if (!inputEl) {
-        sendToExtension({ type: "AUTO_ADD_ERROR", barcode, message: `Search box not found: ${barcode}` });
-        return;
-      }
-      setInputValue(inputEl, barcode);
-      await sleep(config.delayMs);
-
-      const searchBtn = getByXPath(config.searchButtonXPath);
-      if (!searchBtn) {
-        sendToExtension({ type: "AUTO_ADD_ERROR", barcode, message: `Search button not found: ${barcode}` });
-        return;
-      }
-      searchBtn.click();
-      await sleep(config.delayMs);
-
-      const checkboxEl = await waitForElement(config.checkboxXPath, config.timeoutMs);
-      if (!checkboxEl) {
-        sendToExtension({ type: "AUTO_ADD_ERROR", barcode, message: `Result not found for: ${barcode}` });
-        return;
-      }
-      checkboxEl.click();
-      await sleep(config.delayMs);
-
-      const addBtn = getByXPath(config.addButtonXPath);
-      if (!addBtn) {
-        sendToExtension({ type: "AUTO_ADD_ERROR", barcode, message: `Add button not found: ${barcode}` });
-        return;
-      }
-      addBtn.click();
-
-      added++;
-
-      if (i < barcodes.length - 1 && !autoAddState.stopped) {
-        await sleep(config.delayMs);
-      }
+    if (preSetup) {
+      await preSetup();
+    }
+    if (!autoAddState.skipLoop && !autoAddState.stopped) {
+      await runAutoAddLoop(barcodes, config);
     }
   } finally {
     const stopped = autoAddState.stopped;
+    const added = autoAddState.added || 0;
     autoAddState = null;
     if (stopped) {
       sendToExtension({ type: "AUTO_ADD_STOPPED" });
@@ -126,6 +99,94 @@ async function startAutoAdd(barcodes, config, category) {
       sendToExtension({ type: "AUTO_ADD_DONE", added, total: barcodes.length });
     }
   }
+}
+
+async function doBatchSetup(config, batchName) {
+  const batchBtn = await waitForElement(config.batchCreateButtonXPath, config.timeoutMs);
+  if (!batchBtn) {
+    sendToExtension({ type: "AUTO_ADD_ERROR", barcode: "-", message: "Create batch button not found" });
+    autoAddState.skipLoop = true;
+    return;
+  }
+  batchBtn.click();
+  await sleep(config.delayMs);
+
+  const nameInput = await waitForElement(config.batchNameInputXPath, config.timeoutMs);
+  if (!nameInput) {
+    sendToExtension({ type: "AUTO_ADD_ERROR", barcode: "-", message: "Batch name box not found" });
+    autoAddState.skipLoop = true;
+    return;
+  }
+  setInputValue(nameInput, batchName);
+  await sleep(config.delayMs);
+
+  const signsBtn = await waitForElement(config.signsDropdownXPath, config.timeoutMs);
+  if (!signsBtn) {
+    sendToExtension({ type: "AUTO_ADD_ERROR", barcode: "-", message: "Add signs dropdown not found" });
+    autoAddState.skipLoop = true;
+    return;
+  }
+  signsBtn.click();
+  await sleep(config.delayMs);
+
+  const itemLibrary = await waitForElement(config.itemLibraryOptionXPath, config.timeoutMs);
+  if (!itemLibrary) {
+    sendToExtension({ type: "AUTO_ADD_ERROR", barcode: "-", message: "Item Library option not found" });
+    autoAddState.skipLoop = true;
+    return;
+  }
+  itemLibrary.click();
+  await sleep(config.delayMs);
+}
+
+async function runAutoAddLoop(barcodes, config) {
+  let added = 0;
+
+  for (let i = 0; i < barcodes.length; i++) {
+    if (autoAddState.stopped) break;
+    const barcode = barcodes[i];
+
+    sendToExtension({ type: "AUTO_ADD_PROGRESS", index: i + 1, total: barcodes.length, barcode });
+
+    const inputEl = getByXPath(config.searchInputXPath);
+    if (!inputEl) {
+      sendToExtension({ type: "AUTO_ADD_ERROR", barcode, message: `Search box not found: ${barcode}` });
+      break;
+    }
+    setInputValue(inputEl, barcode);
+    await sleep(config.delayMs);
+
+    const searchBtn = getByXPath(config.searchButtonXPath);
+    if (!searchBtn) {
+      sendToExtension({ type: "AUTO_ADD_ERROR", barcode, message: `Search button not found: ${barcode}` });
+      break;
+    }
+    searchBtn.click();
+    await sleep(config.delayMs);
+
+    const checkboxEl = await waitForElement(config.checkboxXPath, config.timeoutMs);
+    if (!checkboxEl) {
+      sendToExtension({ type: "AUTO_ADD_ERROR", barcode, message: `Result not found for: ${barcode}` });
+      break;
+    }
+    checkboxEl.click();
+    await sleep(config.delayMs);
+
+    const addBtn = getByXPath(config.addButtonXPath);
+    if (!addBtn) {
+      sendToExtension({ type: "AUTO_ADD_ERROR", barcode, message: `Add button not found: ${barcode}` });
+      break;
+    }
+    addBtn.click();
+
+    added++;
+
+    if (i < barcodes.length - 1 && !autoAddState.stopped) {
+      await sleep(config.delayMs);
+    }
+  }
+
+  autoAddState.added = added;
 }
 
 function stopAutoAdd() {
