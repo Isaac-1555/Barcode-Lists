@@ -8,6 +8,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === "AUTO_ADD_BATCH_START") {
     startAutoAddBatch(msg.barcodes, msg.config, msg.category, msg.batchName);
   }
+  if (msg.type === "SEARCH_BARCODE") {
+    searchBarcode(msg.barcode, msg.config);
+  }
   if (msg.type === "AUTO_ADD_STOP") {
     stopAutoAdd();
   }
@@ -187,6 +190,25 @@ async function runAutoAddLoop(barcodes, config) {
   }
 
   autoAddState.added = added;
+}
+
+async function searchBarcode(barcode, config) {
+  const inputEl = getByXPath(config.searchInputXPath);
+  if (!inputEl) {
+    sendToExtension({ type: "SEARCH_BARCODE_ERROR", barcode, message: "Search box not found" });
+    return;
+  }
+  setInputValue(inputEl, "");
+  setInputValue(inputEl, barcode);
+
+  const searchBtn = getByXPath(config.searchButtonXPath);
+  if (!searchBtn) {
+    sendToExtension({ type: "SEARCH_BARCODE_ERROR", barcode, message: "Search button not found" });
+    return;
+  }
+  searchBtn.click();
+
+  sendToExtension({ type: "SEARCH_BARCODE_DONE", barcode });
 }
 
 function stopAutoAdd() {

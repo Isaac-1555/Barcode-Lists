@@ -447,7 +447,7 @@ async function syncFromRemote(session) {
     categories,
     comments,
     importantCategories,
-    copiedBarcodes,
+    insertedBarcodes,
     active: filteredOrder[0] || null
   };
 }
@@ -547,7 +547,7 @@ async function syncToRemote(session, state) {
   if (copiedBarcodesResponse.ok) {
     const allCopied = await copiedBarcodesResponse.json();
     const existingCopied = allCopied.map(r => r.barcode_value);
-    const currentCopied = Object.keys(state.copiedBarcodes || {});
+    const currentCopied = Object.keys(state.insertedBarcodes || {});
     const toUncopy = existingCopied.filter(v => !currentCopied.includes(v));
     const toCopy = currentCopied.filter(v => !existingCopied.includes(v));
 

@@ -353,7 +353,7 @@ body {
   stroke: #f87171;
 }
 
-.copy-icon {
+.search-icon {
   stroke: #a1a1aa;
 }
 
@@ -934,7 +934,7 @@ body {
   color: #a1a1aa;
 }
 
-#barcodeList li span.copied {
+#barcodeList li span.inserted {
   color: #a855f7;
 }
 

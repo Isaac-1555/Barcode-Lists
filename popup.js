@@ -23,7 +23,7 @@ let state = {
   categories: {},
   comments: {},
   active: null,
-  copiedBarcodes: {},
+  insertedBarcodes: {},
   unopenedCategories: {},
   importantCategories: {}
 };
@@ -103,7 +103,7 @@ async function initApp() {
       state.categoryOrder = remoteState.categoryOrder;
       state.categories = remoteState.categories;
       state.comments = remoteState.comments;
-      state.copiedBarcodes = remoteState.copiedBarcodes;
+      state.insertedBarcodes = remoteState.insertedBarcodes;
       state.importantCategories = remoteState.importantCategories;
       state.active = remoteState.active;
       saveState();
@@ -129,7 +129,7 @@ async function loadRemoteData() {
     state.categoryOrder = remoteState.categoryOrder;
     state.categories = remoteState.categories;
     state.comments = remoteState.comments;
-    state.copiedBarcodes = remoteState.copiedBarcodes;
+    state.insertedBarcodes = remoteState.insertedBarcodes;
     state.importantCategories = remoteState.importantCategories;
     state.active = remoteState.active;
     saveState();
@@ -167,6 +167,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     finishAutoAdd("Stopped by user");
     showToast("Auto-add stopped");
   }
+  if (msg.type === "SEARCH_BARCODE_DONE") {
+    markInserted(msg.barcode);
+    showToast("Searched: " + msg.barcode);
+  }
+  if (msg.type === "SEARCH_BARCODE_ERROR") {
+    showToast(msg.message);
+  }
 });
 
 async function loadState() {
@@ -182,7 +189,7 @@ async function loadState() {
     state.categories = saved.categories || {};
     state.comments = saved.comments || {};
     state.active = saved.active || null;
-    state.copiedBarcodes = saved.copiedBarcodes || {};
+    state.insertedBarcodes = saved.insertedBarcodes || {};
     state.unopenedCategories = saved.unopenedCategories || {};
     state.importantCategories = saved.importantCategories || {};
   }
@@ -202,7 +209,7 @@ function saveState() {
       categories: state.categories,
       comments: state.comments,
       active: state.active,
-      copiedBarcodes: state.copiedBarcodes,
+      insertedBarcodes: state.insertedBarcodes,
       unopenedCategories: state.unopenedCategories,
       importantCategories: state.importantCategories
     }
@@ -306,7 +313,7 @@ function addBarcode(value) {
   }
 
   list.push(value);
-  delete state.copiedBarcodes[value];
+  delete state.insertedBarcodes[value];
   saveAndSync();
   if (isOnlineMode && session) {
     addBarcodeRemote(session, state.active, value).catch(console.error);
@@ -318,7 +325,7 @@ function addBarcode(value) {
 function removeBarcode(value) {
   const list = state.categories[state.active];
   state.categories[state.active] = list.filter(v => v !== value);
-  delete state.copiedBarcodes[value];
+  delete state.insertedBarcodes[value];
   saveAndSync();
   if (isOnlineMode && session) {
     removeBarcodeRemote(session, state.active, value).catch(console.error);
@@ -327,15 +334,13 @@ function removeBarcode(value) {
   render();
 }
 
-function copyToClipboard(text) {
-  navigator.clipboard.writeText(text);
-  state.copiedBarcodes[text] = true;
+function markInserted(code) {
+  state.insertedBarcodes[code] = true;
   saveState();
   if (isOnlineMode && session) {
-    copyBarcodeRemote(session, text).catch(console.error);
+    copyBarcodeRemote(session, code).catch(console.error);
   }
   render();
-  showToast("Copied");
 }
 
 function render() {
@@ -455,8 +460,8 @@ function renderBarcodes() {
 
     const span = document.createElement("span");
     span.textContent = code;
-    if (state.copiedBarcodes[code]) {
-      span.classList.add("copied");
+    if (state.insertedBarcodes[code]) {
+      span.classList.add("inserted");
     }
 
     const actions = document.createElement("div");
@@ -476,13 +481,13 @@ function renderBarcodes() {
       toggleCommentInput(code, li);
     };
 
-    const copyBtn = document.createElement("span");
-    copyBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="copy-icon"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>`;
-    copyBtn.style.cursor = "pointer";
-    copyBtn.title = "Copy";
-    copyBtn.onclick = (e) => {
+    const searchBtn = document.createElement("span");
+    searchBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="search-icon"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>`;
+    searchBtn.style.cursor = "pointer";
+    searchBtn.title = "Search";
+    searchBtn.onclick = (e) => {
       e.stopPropagation();
-      copyToClipboard(code);
+      searchBarcodeInSite(code);
     };
 
     const del = document.createElement("span");
@@ -495,7 +500,7 @@ function renderBarcodes() {
     };
 
     actions.appendChild(commentBtn);
-    actions.appendChild(copyBtn);
+    actions.appendChild(searchBtn);
     actions.appendChild(del);
 
     li.appendChild(span);
@@ -1314,7 +1319,7 @@ function addSelectedBarcodes() {
       }
     }
     barcodes.forEach(b => {
-      delete state.copiedBarcodes[b];
+      delete state.insertedBarcodes[b];
       if (isOnlineMode && session) {
         addBarcodeRemote(session, tableName, b).catch(console.error);
         unmarkBarcodeCopied(session, b).catch(console.error);
@@ -1415,6 +1420,24 @@ async function saveSettings() {
     statusEl.textContent = "API key cleared";
     statusEl.className = "api-key-status success";
     setTimeout(closeSettingsModal, 1000);
+  }
+}
+
+async function searchBarcodeInSite(code) {
+  const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+  const tab = tabs[0];
+  if (!tab || tab.id === undefined) {
+    showToast("No active tab found");
+    return;
+  }
+  try {
+    await chrome.tabs.sendMessage(tab.id, {
+      type: "SEARCH_BARCODE",
+      barcode: code,
+      config: autoAddConfig
+    });
+  } catch (err) {
+    showToast("Open the target site tab first");
   }
 }
 
