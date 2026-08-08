@@ -95,11 +95,12 @@ async function runAutoAddFlow(barcodes, config, preSetup) {
   } finally {
     const stopped = autoAddState.stopped;
     const added = autoAddState.added || 0;
+    const skipped = autoAddState.skipped || 0;
     autoAddState = null;
     if (stopped) {
       sendToExtension({ type: "AUTO_ADD_STOPPED" });
     } else {
-      sendToExtension({ type: "AUTO_ADD_DONE", added, total: barcodes.length });
+      sendToExtension({ type: "AUTO_ADD_DONE", added, skipped, total: barcodes.length });
     }
   }
 }
@@ -144,6 +145,7 @@ async function doBatchSetup(config, batchName) {
 
 async function runAutoAddLoop(barcodes, config) {
   let added = 0;
+  let skipped = 0;
 
   for (let i = 0; i < barcodes.length; i++) {
     if (autoAddState.stopped) break;
@@ -154,7 +156,8 @@ async function runAutoAddLoop(barcodes, config) {
     const inputEl = getByXPath(config.searchInputXPath);
     if (!inputEl) {
       sendToExtension({ type: "AUTO_ADD_ERROR", barcode, message: `Search box not found: ${barcode}` });
-      break;
+      skipped++;
+      continue;
     }
     setInputValue(inputEl, barcode);
     await sleep(config.delayMs);
@@ -162,7 +165,8 @@ async function runAutoAddLoop(barcodes, config) {
     const searchBtn = getByXPath(config.searchButtonXPath);
     if (!searchBtn) {
       sendToExtension({ type: "AUTO_ADD_ERROR", barcode, message: `Search button not found: ${barcode}` });
-      break;
+      skipped++;
+      continue;
     }
     searchBtn.click();
     await sleep(config.delayMs);
@@ -170,7 +174,8 @@ async function runAutoAddLoop(barcodes, config) {
     const checkboxEl = await waitForElement(config.checkboxXPath, config.timeoutMs);
     if (!checkboxEl) {
       sendToExtension({ type: "AUTO_ADD_ERROR", barcode, message: `Result not found for: ${barcode}` });
-      break;
+      skipped++;
+      continue;
     }
     checkboxEl.click();
     await sleep(config.delayMs);
@@ -178,7 +183,8 @@ async function runAutoAddLoop(barcodes, config) {
     const addBtn = getByXPath(config.addButtonXPath);
     if (!addBtn) {
       sendToExtension({ type: "AUTO_ADD_ERROR", barcode, message: `Add button not found: ${barcode}` });
-      break;
+      skipped++;
+      continue;
     }
     addBtn.click();
 
@@ -190,6 +196,7 @@ async function runAutoAddLoop(barcodes, config) {
   }
 
   autoAddState.added = added;
+  autoAddState.skipped = skipped;
 }
 
 async function searchBarcode(barcode, config) {

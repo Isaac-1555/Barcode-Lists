@@ -156,11 +156,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     updateAutoAddStatus(`${msg.index}/${msg.total}: ${msg.barcode}`);
   }
   if (msg.type === "AUTO_ADD_DONE") {
-    finishAutoAdd(`Done: ${msg.added}/${msg.total}`);
-    showToast(`Auto-added ${msg.added} barcode(s)`);
+    const skipped = msg.skipped || 0;
+    const summary = skipped > 0
+      ? `Done: ${msg.added}/${msg.total} (${skipped} skipped)`
+      : `Done: ${msg.added}/${msg.total}`;
+    finishAutoAdd(summary);
+    showToast(skipped > 0 ? `Auto-added ${msg.added}, skipped ${skipped}` : `Auto-added ${msg.added} barcode(s)`);
   }
   if (msg.type === "AUTO_ADD_ERROR") {
-    finishAutoAdd(`Stopped at ${msg.barcode}: ${msg.message}`);
+    updateAutoAddStatus(`Skipped ${msg.barcode}: ${msg.message}`);
     showToast(msg.message);
   }
   if (msg.type === "AUTO_ADD_STOPPED") {
