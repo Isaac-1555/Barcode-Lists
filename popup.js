@@ -8,6 +8,7 @@ const DEFAULT_AUTO_ADD_CONFIG = {
   addButtonXPath: '//*[@id="addSign"]',
   batchCreateButtonXPath: '//*[@id="batchFilter"]/div[2]/div/div[1]/cui-toolbar/div/cui-toolbar-group[1]/div/cui-button/span/button',
   batchNameInputXPath: '//*[@id="undefined"]',
+  batchCreateConfirmXPath: '//*[@id="app_container"]/ppr-batch-create/div/div/div/cui-button[1]/span/button',
   signsDropdownXPath: '//*[@id="copyId_button"]',
   itemLibraryOptionXPath: '//*[@id="actionDropDown"]/span',
   delayMs: 1500,
@@ -1363,6 +1364,7 @@ function showSettingsModal() {
   document.getElementById("autoAddAddButton").value = autoAddConfig.addButtonXPath || "";
   document.getElementById("batchCreateInput").value = autoAddConfig.batchCreateButtonXPath || "";
   document.getElementById("batchNameInput").value = autoAddConfig.batchNameInputXPath || "";
+  document.getElementById("batchConfirmCreate").value = autoAddConfig.batchCreateConfirmXPath || "";
   document.getElementById("batchSignsDropdown").value = autoAddConfig.signsDropdownXPath || "";
   document.getElementById("batchItemLibrary").value = autoAddConfig.itemLibraryOptionXPath || "";
   document.getElementById("autoAddDelay").value = autoAddConfig.delayMs || "";
@@ -1387,6 +1389,7 @@ async function saveSettings() {
     addButtonXPath: document.getElementById("autoAddAddButton").value.trim(),
     batchCreateButtonXPath: document.getElementById("batchCreateInput").value.trim(),
     batchNameInputXPath: document.getElementById("batchNameInput").value.trim(),
+    batchCreateConfirmXPath: document.getElementById("batchConfirmCreate").value.trim(),
     signsDropdownXPath: document.getElementById("batchSignsDropdown").value.trim(),
     itemLibraryOptionXPath: document.getElementById("batchItemLibrary").value.trim(),
     delayMs: parseInt(document.getElementById("autoAddDelay").value) || 1500,
@@ -1497,6 +1500,7 @@ async function startBatchAdd() {
   const missing = [];
   if (!autoAddConfig.batchCreateButtonXPath) missing.push("create batch");
   if (!autoAddConfig.batchNameInputXPath) missing.push("batch name box");
+  if (!autoAddConfig.batchCreateConfirmXPath) missing.push("create confirm");
   if (!autoAddConfig.signsDropdownXPath) missing.push("add signs dropdown");
   if (!autoAddConfig.itemLibraryOptionXPath) missing.push("item library");
   if (!autoAddConfig.searchInputXPath) missing.push("search box");

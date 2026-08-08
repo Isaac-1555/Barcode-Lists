@@ -61,6 +61,32 @@ function waitForElement(xpath, timeoutMs) {
   });
 }
 
+function closestEnabled(el) {
+  let node = el;
+  while (node && node.nodeType === 1) {
+    if (!node.disabled && !node.hasAttribute("disabled")) return node;
+    node = node.parentElement;
+  }
+  return el;
+}
+
+function waitForElementClickable(xpath, timeoutMs) {
+  return new Promise((resolve) => {
+    const start = Date.now();
+    const interval = setInterval(() => {
+      const el = getByXPath(xpath);
+      const clickable = el ? closestEnabled(el) : null;
+      if (clickable) {
+        clearInterval(interval);
+        resolve(clickable);
+      } else if (Date.now() - start > timeoutMs) {
+        clearInterval(interval);
+        resolve(null);
+      }
+    }, 200);
+  });
+}
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -114,6 +140,7 @@ async function doBatchSetup(config, batchName) {
   }
   batchBtn.click();
   await sleep(config.delayMs);
+  console.log("[BarcodeLists] clicked create batch button");
 
   const nameInput = await waitForElement(config.batchNameInputXPath, config.timeoutMs);
   if (!nameInput) {
@@ -122,6 +149,17 @@ async function doBatchSetup(config, batchName) {
     return;
   }
   setInputValue(nameInput, batchName);
+  await sleep(config.delayMs);
+  console.log("[BarcodeLists] typed batch name:", batchName);
+
+  const confirmBtn = await waitForElementClickable(config.batchCreateConfirmXPath, config.timeoutMs);
+  if (!confirmBtn) {
+    sendToExtension({ type: "AUTO_ADD_ERROR", barcode: "-", message: "Create (confirm) button not found or disabled" });
+    autoAddState.skipLoop = true;
+    return;
+  }
+  confirmBtn.click();
+  console.log("[BarcodeLists] clicked create (confirm) button");
   await sleep(config.delayMs);
 
   const signsBtn = await waitForElement(config.signsDropdownXPath, config.timeoutMs);
