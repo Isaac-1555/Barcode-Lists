@@ -17,7 +17,6 @@ const DEFAULT_AUTO_ADD_CONFIG = {
 
 let autoAddConfig = { ...DEFAULT_AUTO_ADD_CONFIG };
 let autoAddRunning = false;
-let autoAddMode = null;
 
 let state = {
   categoryOrder: [],
@@ -599,14 +598,6 @@ function setupEventListeners() {
 
   document.getElementById("settingsBtn").onclick = showSettingsModal;
 
-  document.getElementById("autoAddBtn").onclick = () => {
-    if (autoAddRunning) {
-      stopAutoAdd();
-    } else {
-      startAutoAdd();
-    }
-  };
-
   document.getElementById("batchAddBtn").onclick = () => {
     if (autoAddRunning) {
       stopAutoAdd();
@@ -982,47 +973,6 @@ async function searchBarcodeInSite(code) {
   }
 }
 
-async function startAutoAdd() {
-  const barcodes = state.active ? (state.categories[state.active] || []) : [];
-
-  if (barcodes.length === 0) {
-    showToast("No barcodes in this list");
-    return;
-  }
-
-  const missing = [];
-  if (!autoAddConfig.searchInputXPath) missing.push("search box");
-  if (!autoAddConfig.searchButtonXPath) missing.push("search button");
-  if (!autoAddConfig.checkboxXPath) missing.push("checkbox");
-  if (!autoAddConfig.addButtonXPath) missing.push("add button");
-  if (missing.length > 0) {
-    showToast("Missing XPath: " + missing.join(", ") + ". Check Settings");
-    return;
-  }
-
-  const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-  const tab = tabs[0];
-  if (!tab || tab.id === undefined) {
-    showToast("No active tab found");
-    return;
-  }
-
-  setAutoAddRunning(true, "simple");
-
-  try {
-    await chrome.tabs.sendMessage(tab.id, {
-      type: "AUTO_ADD_START",
-      barcodes: barcodes,
-      config: autoAddConfig,
-      category: state.active
-    });
-  } catch (err) {
-    setAutoAddRunning(false);
-    updateAutoAddStatus("No content script on this page");
-    showToast("Open the target site tab first");
-  }
-}
-
 async function startBatchAdd() {
   const barcodes = state.active ? (state.categories[state.active] || []) : [];
 
@@ -1053,7 +1003,7 @@ async function startBatchAdd() {
     return;
   }
 
-  setAutoAddRunning(true, "batch");
+  setAutoAddRunning(true);
 
   try {
     await chrome.tabs.sendMessage(tab.id, {
@@ -1078,23 +1028,17 @@ async function stopAutoAdd() {
   }
 }
 
-function setAutoAddRunning(running, mode) {
+function setAutoAddRunning(running) {
   autoAddRunning = running;
-  if (mode) autoAddMode = mode;
 
   const stopIcon = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>';
-  const playIcon = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>';
   const sparklesIcon = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3H8"/><path d="m15.007 5.008 3.987 3.986"/><path d="M20 15v4"/><path d="M21.174 6.813a2.82 2.82 0 0 0-3.986-3.987L3.842 16.175a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="M22 17h-4"/><path d="M4 5v4"/><path d="M6 7H2"/><path d="M9 2v2"/></svg>';
 
-  const simpleBtn = document.getElementById("autoAddBtn");
   const batchBtn = document.getElementById("batchAddBtn");
 
-  simpleBtn.classList.toggle("running", running && autoAddMode === "simple");
-  batchBtn.classList.toggle("running", running && autoAddMode === "batch");
-  simpleBtn.title = running && autoAddMode === "simple" ? "Stop auto-add" : "Auto Add all barcodes";
-  batchBtn.title = running && autoAddMode === "batch" ? "Stop batch add" : "Create batch and auto-add";
-  simpleBtn.innerHTML = running && autoAddMode === "simple" ? stopIcon : playIcon;
-  batchBtn.innerHTML = running && autoAddMode === "batch" ? stopIcon : sparklesIcon;
+  batchBtn.classList.toggle("running", running);
+  batchBtn.title = running ? "Stop batch add" : "Create batch and auto-add";
+  batchBtn.innerHTML = running ? stopIcon : sparklesIcon;
 }
 
 function updateAutoAddStatus(text) {

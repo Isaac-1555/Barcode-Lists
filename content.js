@@ -2,9 +2,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === "SHOW_OVERLAY") {
     showOverlay(msg.message);
   }
-  if (msg.type === "AUTO_ADD_START") {
-    startAutoAdd(msg.barcodes, msg.config, msg.category);
-  }
   if (msg.type === "AUTO_ADD_BATCH_START") {
     startAutoAddBatch(msg.barcodes, msg.config, msg.category, msg.batchName);
   }
@@ -97,10 +94,6 @@ function sendToExtension(msg) {
   } catch (err) {
     // extension context may be gone
   }
-}
-
-function startAutoAdd(barcodes, config, category) {
-  runAutoAddFlow(barcodes, config, null);
 }
 
 function startAutoAddBatch(barcodes, config, category, batchName) {

@@ -166,22 +166,6 @@ body {
   background: #7f1d1d;
 }
 
-#autoAddBtn {
-  background: #14301d;
-}
-
-#autoAddBtn:hover {
-  background: #1f5c33;
-}
-
-#autoAddBtn.running {
-  background: #7f1d1d;
-}
-
-#autoAddBtn.running:hover {
-  background: #b91c1c;
-}
-
 #batchAddBtn {
   background: #1e1b4b;
 }
