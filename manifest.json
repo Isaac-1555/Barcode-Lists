@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Barcode Lists",
-  "version": "6.6",
-  "description": "Store and manage barcode lists with OCR extraction",
+  "version": "6.7",
+  "description": "Store and manage barcode lists with Excel extraction",
   "permissions": [
     "storage",
     "sidePanel",
@@ -14,8 +14,7 @@
     "128": "icon128.png"
   },
   "host_permissions": [
-    "https://*.supabase.co/*",
-    "https://openrouter.ai/*"
+    "https://*.supabase.co/*"
   ],
   "background": {
     "service_worker": "background.js"

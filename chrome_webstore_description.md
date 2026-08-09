@@ -2,7 +2,7 @@
 
 ## Short Description
 
-Barcode Lists is a side-panel tool for Calgary Co-op FMC departments to save, organize, and auto-enter barcodes with AI OCR, Excel import, and cloud sync.
+Barcode Lists is a side-panel tool for Calgary Co-op FMC departments to save, organize, and auto-enter barcodes with Excel import and cloud sync.
 
 ## Detailed Description
 
@@ -25,14 +25,9 @@ The extension runs in Chrome's side panel, so your lists stay one click away wit
 - Important categories (shared from management) glow red so you never miss a priority list
 
 **Import from Excel**
-- Upload .xlsx or .xls files — every barcode-like column is detected automatically
-- AI cleans up messy entries (removes spaces, dashes, formatting) before adding them
+- Upload .xlsx or .xls files — the "UPC" column is detected automatically
+- Spaces and formatting are stripped so only the clean barcode number is added
 - Review modal shows exactly what was found, flags duplicates, and lets you select or remove check digits before importing
-
-**Scan from images (AI OCR)**
-- Upload a photo of a shelf tag, packing slip, or product packaging (.png, .jpg, .gif, .bmp, .webp)
-- A vision AI model extracts the UPC/EAN numbers automatically
-- Review and pick the barcodes you want before they're added
 
 **One-click automation**
 - Enter every barcode in your active list into an external site automatically — one by one
@@ -55,7 +50,7 @@ The extension runs in Chrome's side panel, so your lists stay one click away wit
 
 1. Click the Barcode Lists icon in the Chrome toolbar to open the side panel.
 2. Enter your store number (e.g., FMC07) and a password. Your store account is created automatically the first time.
-3. Add barcodes by typing them in and pressing Enter, or import them from an Excel file or photo.
+3. Add barcodes by typing them in and pressing Enter, or import them from an Excel file.
 4. Group barcodes into categories like Dairy or Produce.
 5. Click the play button to auto-enter a list into your ordering site, or use Settings to configure the XPath selectors for your site.
 6. Your data syncs to the cloud automatically when you're online, and works offline too.
@@ -65,9 +60,8 @@ The extension runs in Chrome's side panel, so your lists stay one click away wit
 - **Storage** — saves your barcode lists, categories, and session locally so everything works offline.
 - **Side panel** — shows the app in Chrome's side panel for quick access.
 - **Supabase host access** — syncs your lists to your store's private cloud database.
-- **OpenRouter host access** — powers AI barcode extraction from images and Excel files.
 
-Barcode data is used only for list management. No analytics, no tracking, no ads. Images sent for OCR are processed by the AI service and are not stored. No personal user data is collected.
+Barcode data is used only for list management. No analytics, no tracking, no ads. No personal user data is collected.
 
 ---
 
@@ -87,7 +81,6 @@ Barcode data is used only for list management. No analytics, no tracking, no ads
 - **Vanilla JavaScript (ES6+)** — async/await, Promises, template literals; zero build step
 - **HTML5 / CSS3** — dark-themed responsive UI
 - **Supabase (PostgreSQL REST API)** — cloud auth and bidirectional data sync
-- **OpenRouter AI API** — image OCR and Excel barcode extraction (`openrouter/free` model)
 - **SheetJS (xlsx.js)** — client-side Excel file parsing
 - **Chrome APIs** — chrome.storage.local, chrome.storage.session, chrome.sidePanel, chrome.tabs, chrome.runtime, chrome.alarms, chrome.notifications
 

@@ -60,7 +60,7 @@
 
       <div class="input-row">
         <input id="barcodeInput" placeholder="Enter barcode..." />
-        <button id="uploadBtn" class="icon-btn-sm" title="Upload Excel or Image">
+        <button id="uploadBtn" class="icon-btn-sm" title="Upload Excel">
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
         </button>
         <button id="settingsBtn" class="icon-btn-sm" title="Settings">
@@ -77,7 +77,7 @@
   <div id="loadingOverlay" class="loading-overlay" style="display: none;">
     <div class="loading-box">
       <span class="loading-spinner-lg"></span>
-      <p id="loadingMessage">AI is processing UPC values...</p>
+      <p id="loadingMessage">Processing...</p>
     </div>
   </div>
 
@@ -112,11 +112,6 @@
         <span id="closeSettingsModal" class="modal-close">&times;</span>
       </div>
       <div class="modal-body">
-        <label class="settings-label">OpenRouter API Key</label>
-        <input type="password" id="apiKeyInput" placeholder="sk-or-v1-..." class="settings-input" />
-        <p class="settings-hint">Get your free API key from <a href="#" id="openrouterLink">openrouter.ai</a></p>
-        <div id="apiKeyStatus" class="api-key-status"></div>
-        <hr class="settings-divider" />
         <label class="settings-label">Auto Add XPath Settings</label>
         <input type="text" id="autoAddSearchInput" placeholder="Search box XPath" class="settings-input" />
         <input type="text" id="autoAddSearchButton" placeholder="Search button XPath" class="settings-input" />
@@ -149,27 +144,9 @@
     </div>
   </div>
 
-  <div id="sheetSelectorModal" class="modal" style="display: none;">
-    <div class="modal-content settings-modal sheet-selector-modal">
-      <div class="modal-header">
-        <h3>Select Sheets to Extract</h3>
-        <span id="closeSheetSelectorModal" class="modal-close">&times;</span>
-      </div>
-      <div class="modal-body">
-        <p class="settings-hint">This file contains multiple sheets. Select which week(s) to extract barcodes from:</p>
-        <div id="sheetSelectorList" class="sheet-selector-list"></div>
-      </div>
-      <div class="modal-footer">
-        <button id="cancelSheetSelectorBtn" class="cancel-btn">Cancel</button>
-        <button id="confirmSheetSelectorBtn" class="add-btn">Extract Selected</button>
-      </div>
-    </div>
-  </div>
-
-  <input type="file" id="fileInput" accept=".xlsx,.xls,.png,.jpg,.jpeg,.gif,.bmp,.webp" style="display: none;" />
+  <input type="file" id="fileInput" accept=".xlsx,.xls" style="display: none;" />
 
   <script src="xlsx.full.min.js"></script>
-  <script src="openrouter.js"></script>
   <script src="supabase.js"></script>
   <script src="popup.js"></script>
 </body>

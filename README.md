@@ -1,6 +1,6 @@
 # Barcode Lists
 
-A Chrome Extension (Manifest V3) for retail and store employees to store, organize, and manage barcode/UPC lists. Runs in Chrome's **Side Panel** for quick access without leaving the current tab. Supports cloud sync, AI-powered barcode extraction from images and Excel files, and fully offline operation.
+A Chrome Extension (Manifest V3) for retail and store employees to store, organize, and manage barcode/UPC lists. Runs in Chrome's **Side Panel** for quick access without leaving the current tab. Supports cloud sync, Excel barcode import, and fully offline operation.
 
 ## Features
 
@@ -30,9 +30,8 @@ A Chrome Extension (Manifest V3) for retail and store employees to store, organi
 - Click the comment icon to add or edit a comment
 - Comments sync to the cloud with barcode data
 
-### AI-Powered Extraction
-- **Image OCR** -- upload images (`.png`, `.jpg`, `.gif`, `.bmp`, `.webp`) of physical barcodes; an AI vision model extracts UPC/EAN numbers automatically
-- **Excel Import** -- upload `.xlsx`/`.xls` files; the extension parses columns, identifies barcode-like values, and uses AI to clean messy or formatted entries (removing spaces, dashes, etc.)
+### Excel Import
+- Upload `.xlsx`/`.xls` files; the extension finds the column headed "UPC", strips all spaces and non-numeric characters, and extracts the barcode numbers
 - **Review Modal** -- after extraction, a review modal displays all found barcodes with checkboxes, duplicate detection ("Already in list" / "Exists" badges), select/deselect all, and a toggle to remove the check digit (last digit)
 
 ### Cloud Sync
@@ -48,7 +47,7 @@ A Chrome Extension (Manifest V3) for retail and store employees to store, organi
 ### UI
 - Fully dark-themed interface
 - Responsive flexbox layout with sidebar + main content area
-- Loading overlays during AI processing
+- Loading overlays during file processing
 - Modals for settings, review, and confirmations
 
 ## Architecture
@@ -64,7 +63,6 @@ Barcode_saver/
 ├── popup.js             # Core application logic (state, rendering, UI events)
 ├── popup.css            # Dark theme styling, animations, layout
 ├── supabase.js          # Supabase backend: auth, sync, CRUD via REST API
-├── openrouter.js        # OpenRouter AI: image OCR + Excel barcode extraction
 ├── xlsx.full.min.js     # Vendored SheetJS library for Excel parsing
 ├── privacy_policy.md    # Privacy policy for Chrome Web Store
 ├── justifications.md    # Chrome Web Store permission justifications
@@ -79,7 +77,6 @@ Barcode_saver/
 | `popup.js` | Application core. Manages in-memory state, DOM rendering, category/barcode CRUD, file uploads, drag-and-drop, review modal, settings, and auto-add control. |
 | `content.js` | Page automation. Overlay notifications and the auto-add engine that enters barcodes into the active tab via configurable XPath selectors. |
 | `supabase.js` | Data layer. Handles store authentication (`login`/`logout`/`getSession`), connectivity checks (`isOnline`), and bidirectional sync (`syncFromRemote`/`syncToRemote`) via raw `fetch()` calls to Supabase REST. |
-| `openrouter.js` | AI layer. Sends images (base64) or messy text values to the OpenRouter chat completions API for barcode extraction. Also manages API key storage. |
 | `popup.html` | Single-page UI structure: login screen, main app (sidebar + content), toast element, loading overlay, review modal, settings modal. |
 | `popup.css` | Complete dark theme with flexbox layout, modal system, toast notifications, loading spinner, sync status indicator, and styled form controls. |
 
@@ -91,7 +88,6 @@ Barcode_saver/
 | Vanilla JavaScript (ES6+) | Application logic (async/await, Promises, template literals) |
 | HTML5 / CSS3 | UI markup and dark-themed styling |
 | Supabase (REST API) | Cloud database for authentication and data sync |
-| OpenRouter AI API | AI-powered barcode extraction (model: `openrouter/free`) |
 | SheetJS (xlsx.js) | Client-side Excel file parsing |
 | Chrome APIs | `chrome.storage.local`, `chrome.storage.session`, `chrome.sidePanel`, `chrome.tabs`, `chrome.runtime` |
 ## Data Model
@@ -154,7 +150,6 @@ Sync uses a **delete-all-then-reinsert** approach: `syncToRemote` deletes all ba
 | `storage` | Persist barcodes, categories, session, and API key locally |
 | `sidePanel` | Render the extension UI in Chrome's side panel |
 | `host_permissions: https://*.supabase.co/*` | Cloud sync and authentication via Supabase REST API |
-| `host_permissions: https://openrouter.ai/*` | AI-powered barcode extraction from images and Excel data |
 
 ## Installation
 
@@ -191,21 +186,12 @@ There is no build step. The extension loads directly from source.
 
 ### Importing from Excel
 1. Click the upload button and select an `.xlsx` or `.xls` file
-2. The extension parses all columns and identifies barcode-like values
-3. Messy or formatted values are cleaned using AI
-4. A review modal shows all extracted barcodes with duplicate detection
-5. Select the barcodes you want and click **Add Selected**
-
-### Importing from Images
-1. Click the upload button and select an image file (`.png`, `.jpg`, `.gif`, `.bmp`, `.webp`)
-2. The AI vision model scans the image for UPC/EAN barcodes
-3. Extracted barcodes appear in the review modal for selection
+2. The extension finds the column headed "UPC" and strips all spaces and non-numeric characters
+3. A review modal shows all extracted barcodes with duplicate detection
+4. Select the barcodes you want (optionally removing the check digit) and click **Add Selected**
 
 ### Settings
-- Open the settings modal (gear icon) to configure your **OpenRouter API key**
-- The API key is required for AI-powered extraction features (image OCR and Excel cleaning)
-- A validation test confirms the key is valid before saving
-- Configure **Auto-Add XPaths** to automate entering barcodes into an external site
+- Open the settings modal (gear icon) to configure **Auto-Add XPaths** for automating entry into an external site
 
 ### Auto-Adding Barcodes
 1. Open the external site in a browser tab (the side panel must be on the same window)
@@ -213,20 +199,9 @@ There is no build step. The extension loads directly from source.
 3. Click the **play button** in the list header to start; it toggles to **stop** while running
 4. For each barcode the extension types it, searches, checks the result, and clicks add before moving to the next
 
-## API Keys
-
-The extension uses the [OpenRouter](https://openrouter.ai/) API for AI features. To use image OCR and Excel barcode extraction:
-
-1. Create a free account at [openrouter.ai](https://openrouter.ai/)
-2. Generate an API key
-3. Enter the key in the extension's settings modal
-
-The extension uses the `openrouter/free` model, which is free to use on OpenRouter.
-
 ## Privacy
 
 - Barcode data is stored locally in Chrome storage and optionally synced to Supabase
-- Images uploaded for OCR are sent to OpenRouter's API for processing and are not stored
 - No personal user data is collected
 - See [privacy_policy.md](privacy_policy.md) for the full privacy policy
 

@@ -22,7 +22,6 @@ No build, no bundler, no package manager.
 | `background.js` | Service worker that opens side panel on icon click |
 | `popup.js` | Application core: state management, DOM rendering, events |
 | `supabase.js` | Backend: auth, sync, CRUD via Supabase REST API |
-| `openrouter.js` | AI layer: image OCR and Excel barcode extraction via OpenRouter |
 
 ## Architecture
 
@@ -48,7 +47,7 @@ No build, no bundler, no package manager.
 
 **Syncing changes**: Call `saveAndSync()` after any state mutation — saves locally first, then pushes to Supabase if online.
 
-**Testing AI extraction**: Requires OpenRouter API key in settings. Use the Settings modal (gear icon) to configure.
+**Importing Excel files**: `processExcelFile()` in popup.js finds the column headed "UPC" (searching the first 10 rows of each sheet), strips all non-numeric characters from each cell below it, and dedupes. Extracted barcodes are grouped under a category named after the file (extension stripped). The review modal's "Remove last digit (check digit)" toggle strips the final digit on add.
 
 ## Important Patterns
 
@@ -56,5 +55,5 @@ No build, no bundler, no package manager.
 - Comments limited to 250 characters
 - `isOnlineMode` checked before every sync operation
 - `showToast(msg)` for user feedback, `showLoadingOverlay(msg)` for async operations
-- File uploads handled in `handleFileUpload()` — supports `.xlsx`, `.xls`, and common image formats
+- File uploads handled in `handleFileUpload()` — supports `.xlsx` and `.xls` only
 - Excel parsing uses vendored SheetJS (`xlsx.full.min.js`)

@@ -35,9 +35,6 @@ let draggedItem = null;
 let draggedIndex = -1;
 let pendingExtraction = [];
 let selectedForExtraction = [];
-let currentDisplayPlanFile = null;
-let currentWorkbook = null;
-let selectedSheets = [];
 
 document.addEventListener("DOMContentLoaded", async () => {
   chrome.action.setBadgeText({ text: "" }).catch(() => {});
@@ -627,10 +624,6 @@ function setupEventListeners() {
   document.getElementById("closeSettingsModal").onclick = closeSettingsModal;
   document.getElementById("cancelSettingsBtn").onclick = closeSettingsModal;
   document.getElementById("saveSettingsBtn").onclick = saveSettings;
-  document.getElementById("openrouterLink").onclick = (e) => {
-    e.preventDefault();
-    chrome.tabs.create({ url: "https://openrouter.ai/" });
-  };
 }
 
 function showToast(msg) {
@@ -661,17 +654,7 @@ async function handleFileUpload(event) {
   const extension = file.name.split(".").pop().toLowerCase();
 
   if (["xlsx", "xls"].includes(extension)) {
-    const arrayBuffer = await file.arrayBuffer();
-    const data = new Uint8Array(arrayBuffer);
-    const workbook = XLSX.read(data, { type: "array" });
-    
-    if (detectDisplayPlanFile(workbook, file.name)) {
-      await processDisplayPlanFile(file, workbook);
-    } else {
-      await processExcelFile(file);
-    }
-  } else if (["png", "jpg", "jpeg", "gif", "bmp", "webp"].includes(extension)) {
-    await processImageFile(file);
+    await processExcelFile(file);
   } else {
     showToast("Unsupported file type");
   }
@@ -679,330 +662,30 @@ async function handleFileUpload(event) {
   event.target.value = "";
 }
 
-function isBarcodeLike(val) {
-  if (/^\d{3,}$/.test(val)) return "clean";
-  if (/^[\d\s\-]{5,}$/.test(val) && (val.replace(/[^\d]/g, "").length >= 5)) return "raw";
-  return false;
+function cleanUPCValue(val) {
+  const cleaned = String(val).replace(/\D+/g, "");
+  return cleaned.length >= 5 ? cleaned : null;
 }
 
-function detectDisplayPlanFile(workbook, fileName) {
-  const lowerFileName = fileName.toLowerCase();
-  if (lowerFileName.includes('display') || lowerFileName.includes('plan')) {
-    return true;
-  }
-  
-  const weekPattern = /^(wk\s*\d+|wk\d+|\d+)$/i;
-  const displayPlanIndicators = ['FRONT END', 'BACK END', 'SHOP ONLINE', 'APP SIGNAGE', 'COCA COLA', 'BFTW'];
-  
-  for (const sheetName of workbook.SheetNames) {
-    if (weekPattern.test(sheetName.trim())) {
-      return true;
-    }
-  }
-  
-  return false;
-}
-
-function getSheetDate(workbook, sheetName) {
+function findUPCColumn(workbook, sheetName) {
   const sheet = workbook.Sheets[sheetName];
   if (!sheet || !sheet["!ref"]) return null;
-  
+
   const range = XLSX.utils.decode_range(sheet["!ref"]);
-  for (let row = Math.min(range.s.r, 3); row <= Math.min(range.e.r, 5); row++) {
-    for (let col = Math.min(range.s.c, 2); col <= Math.min(range.e.c, 5); col++) {
+  const maxHeaderRow = Math.min(range.e.r, 9);
+
+  for (let row = range.s.r; row <= maxHeaderRow; row++) {
+    for (let col = range.s.c; col <= range.e.c; col++) {
       const cell = sheet[XLSX.utils.encode_cell({ r: row, c: col })];
-      if (cell && cell.v) {
-        const val = String(cell.v);
-        if (/\d{4}|\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i.test(val)) {
-          return val.trim();
+      if (cell && cell.v !== undefined && cell.v !== null) {
+        const val = String(cell.v).trim();
+        if (val.toLowerCase().includes("upc")) {
+          return { headerRow: row, col: col };
         }
       }
     }
   }
   return null;
-}
-
-function showSheetSelectorModal(workbook, fileName) {
-  return new Promise((resolve) => {
-    const modal = document.getElementById("sheetSelectorModal");
-    const list = document.getElementById("sheetSelectorList");
-    list.innerHTML = "";
-    selectedSheets = [];
-    currentWorkbook = workbook;
-    currentDisplayPlanFile = fileName;
-    
-    const selectAllRow = document.createElement("div");
-    selectAllRow.className = "select-all-row";
-    const selectAllCheckbox = document.createElement("input");
-    selectAllCheckbox.type = "checkbox";
-    selectAllCheckbox.checked = false;
-    selectAllCheckbox.id = "selectAllSheets";
-    const selectAllLabel = document.createElement("span");
-    selectAllLabel.textContent = "Select All";
-    selectAllCheckbox.onchange = () => {
-      const checkboxes = list.querySelectorAll('input[type="checkbox"]');
-      checkboxes.forEach(cb => cb.checked = selectAllCheckbox.checked);
-    };
-    selectAllRow.appendChild(selectAllCheckbox);
-    selectAllRow.appendChild(selectAllLabel);
-    list.appendChild(selectAllRow);
-    
-    const weekPattern = /^wk\s*(\d+)/i;
-    
-    workbook.SheetNames.forEach((sheetName) => {
-      const item = document.createElement("div");
-      item.className = "sheet-selector-item";
-      
-      const checkbox = document.createElement("input");
-      checkbox.type = "checkbox";
-      checkbox.dataset.sheet = sheetName;
-      
-      const info = document.createElement("div");
-      info.className = "sheet-info";
-      
-      const match = sheetName.match(weekPattern);
-      const date = getSheetDate(workbook, sheetName);
-      let displayName = sheetName;
-      if (match) {
-        const weekNum = match[1].padStart(2, '0');
-        displayName = `Week ${weekNum}`;
-        if (date) {
-          displayName += ` - ${date}`;
-        }
-      } else {
-        displayName = date || sheetName;
-      }
-      
-      const nameSpan = document.createElement("div");
-      nameSpan.className = "sheet-name";
-      nameSpan.textContent = displayName;
-      
-      info.appendChild(nameSpan);
-      
-      item.appendChild(checkbox);
-      item.appendChild(info);
-      
-      checkbox.onchange = () => {
-        if (checkbox.checked) {
-          item.classList.add("selected");
-        } else {
-          item.classList.remove("selected");
-        }
-        const allChecked = Array.from(list.querySelectorAll('.sheet-selector-item input'))
-          .every(cb => cb.checked);
-        const noneChecked = Array.from(list.querySelectorAll('.sheet-selector-item input'))
-          .every(cb => !cb.checked);
-        selectAllCheckbox.checked = allChecked && !noneChecked;
-        selectAllCheckbox.indeterminate = !allChecked && !noneChecked;
-      };
-      
-      item.onclick = (e) => {
-        if (e.target !== checkbox) {
-          checkbox.checked = !checkbox.checked;
-          checkbox.dispatchEvent(new Event("change"));
-        }
-      };
-      
-      list.appendChild(item);
-    });
-    
-    const confirmBtn = document.getElementById("confirmSheetSelectorBtn");
-    const cancelBtn = document.getElementById("cancelSheetSelectorBtn");
-    const closeBtn = document.getElementById("closeSheetSelectorModal");
-    
-    const cleanup = () => {
-      modal.style.display = "none";
-      confirmBtn.onclick = null;
-      cancelBtn.onclick = null;
-      closeBtn.onclick = null;
-    };
-    
-    confirmBtn.onclick = () => {
-      const checked = Array.from(list.querySelectorAll('.sheet-selector-item input:checked'))
-        .map(cb => cb.dataset.sheet);
-      cleanup();
-      resolve(checked);
-    };
-    
-    cancelBtn.onclick = () => {
-      cleanup();
-      resolve(null);
-    };
-    
-    closeBtn.onclick = () => {
-      cleanup();
-      resolve(null);
-    };
-    
-    modal.style.display = "flex";
-  });
-}
-
-function parseDisplayPlanSheet(workbook, sheetName) {
-  const sheet = workbook.Sheets[sheetName];
-  if (!sheet || !sheet["!ref"]) return [];
-  
-  const range = XLSX.utils.decode_range(sheet["!ref"]);
-  const date = getSheetDate(workbook, sheetName);
-  const tables = {};
-  
-  const FRONT_END_HEADER_ROW = 3;
-  const FRONT_END_DATA_START = 5;
-  const FRONT_END_DATA_END = 20;
-  
-  for (let col = 1; col <= range.e.c; col += 2) {
-    const headerCell = sheet[XLSX.utils.encode_cell({ r: FRONT_END_HEADER_ROW, c: col })];
-    const headerVal = headerCell?.v ? String(headerCell.v).trim() : "";
-    
-    if (headerVal && !/^\d+\.?\d*$/.test(headerVal) && headerVal.length > 1) {
-      const cleanHeader = headerVal.replace(/[#.]/g, '').trim();
-      if (cleanHeader && !tables[cleanHeader]) {
-        tables[cleanHeader] = [];
-        
-        for (let row = FRONT_END_DATA_START; row <= FRONT_END_DATA_END; row++) {
-          const cell = sheet[XLSX.utils.encode_cell({ r: row, c: col })];
-          if (cell && cell.v !== undefined && cell.v !== null) {
-            const val = String(cell.v).trim();
-            if (val && val !== "0" && val !== "0.0") {
-              tables[cleanHeader].push(val);
-            }
-          }
-        }
-      }
-    }
-  }
-  
-  const BACK_END_HEADER_ROW = 23;
-  const BACK_END_DATA_START = 25;
-  const BACK_END_DATA_END = 40;
-  
-  for (let col = 1; col <= range.e.c; col += 2) {
-    const headerCell = sheet[XLSX.utils.encode_cell({ r: BACK_END_HEADER_ROW, c: col })];
-    const headerVal = headerCell?.v ? String(headerCell.v).trim() : "";
-    
-    if (headerVal && !/^\d+\.?\d*$/.test(headerVal) && headerVal.length > 1) {
-      const cleanHeader = headerVal.replace(/[#.]/g, '').trim();
-      if (cleanHeader && !tables[cleanHeader]) {
-        tables[cleanHeader] = [];
-        
-        for (let row = BACK_END_DATA_START; row <= BACK_END_DATA_END; row++) {
-          const cell = sheet[XLSX.utils.encode_cell({ r: row, c: col })];
-          if (cell && cell.v !== undefined && cell.v !== null) {
-            const val = String(cell.v).trim();
-            if (val && val !== "0" && val !== "0.0") {
-              tables[cleanHeader].push(val);
-            }
-          }
-        }
-      }
-    }
-  }
-  
-  const SEASONAL_HEADER_ROW = 45;
-  const SEASONAL_DATA_START = 46;
-  const SEASONAL_DATA_END = 55;
-  
-  for (let col = 0; col <= range.e.c; col++) {
-    const headerCell = sheet[XLSX.utils.encode_cell({ r: SEASONAL_HEADER_ROW, c: col })];
-    const headerVal = headerCell?.v ? String(headerCell.v).trim() : "";
-    
-    const isSectionLabel = ['SEASONAL', 'STAYS', 'FRONT END', 'BACK END', 'CHANGE', 'FLYER END', 'DETAIL', '4 WAY'].some(
-      s => headerVal.toUpperCase().includes(s)
-    );
-    
-    if (headerVal && !isSectionLabel && headerVal.length > 2) {
-      const cleanHeader = headerVal.replace(/[#.]/g, '').trim();
-      if (cleanHeader && !tables[cleanHeader]) {
-        tables[cleanHeader] = [];
-        
-        for (let row = SEASONAL_DATA_START; row <= SEASONAL_DATA_END; row++) {
-          const cell = sheet[XLSX.utils.encode_cell({ r: row, c: col })];
-          if (cell && cell.v !== undefined && cell.v !== null) {
-            const val = String(cell.v).trim();
-            if (val && val !== "0" && val !== "0.0") {
-              tables[cleanHeader].push(val);
-            }
-          }
-        }
-      }
-    }
-  }
-  
-  const weekMatch = sheetName.match(/wk\s*(\d+)/i);
-  const weekNum = weekMatch ? `WK${weekMatch[1].padStart(2, '0')}` : sheetName;
-  const prefix = date ? `${weekNum} - ${date}` : weekNum;
-  
-  const results = [];
-  for (const tableName in tables) {
-    const fullTableName = `${prefix} - ${tableName}`;
-    results.push({
-      tableName: fullTableName,
-      rawValues: tables[tableName],
-      sheetName: sheetName
-    });
-  }
-  
-  return results;
-}
-
-async function processDisplayPlanFile(file, workbook) {
-  const selectedSheetNames = await showSheetSelectorModal(workbook, file.name);
-  
-  if (!selectedSheetNames || selectedSheetNames.length === 0) {
-    return;
-  }
-  
-  showLoadingOverlay("Extracting table data...");
-  
-  try {
-    const allTableData = [];
-    
-    for (const sheetName of selectedSheetNames) {
-      const tableData = parseDisplayPlanSheet(workbook, sheetName);
-      allTableData.push(...tableData);
-    }
-    
-    if (allTableData.length === 0) {
-      hideLoadingOverlay();
-      showToast("No data found in selected sheets");
-      return;
-    }
-    
-    showLoadingOverlay("AI is processing UPC values...");
-    
-    const results = [];
-    
-    for (const table of allTableData) {
-      if (table.rawValues.length > 0) {
-        try {
-          const aiBarcodes = await extractBarcodesFromDisplayPlan(table.rawValues, table.tableName);
-          results.push({
-            tableName: table.tableName,
-            barcodes: [...new Set(aiBarcodes)]
-          });
-        } catch (aiErr) {
-          console.error("AI extraction error:", aiErr);
-          showToast(aiErr.message || "AI processing failed");
-        }
-      }
-    }
-    
-    hideLoadingOverlay();
-    
-    if (results.length === 0) {
-      showToast("No barcodes found");
-      return;
-    }
-    
-    pendingExtraction = results;
-    currentDisplayPlanFile = file.name;
-    showReviewModal(true);
-    
-  } catch (err) {
-    hideLoadingOverlay();
-    console.error("Display Plan processing error:", err);
-    showToast("Error processing Display Plan file");
-  }
 }
 
 async function processExcelFile(file) {
@@ -1011,163 +694,55 @@ async function processExcelFile(file) {
   try {
     const arrayBuffer = await file.arrayBuffer();
     const data = new Uint8Array(arrayBuffer);
-    
-    const workbook = XLSX.read(data, { type: "array" });
-    const results = [];
-    let needsAI = false;
 
-    const allRawBySheet = [];
+    const workbook = XLSX.read(data, { type: "array" });
+    const tableName = file.name.replace(/\.(xlsx|xls)$/i, "");
+    const barcodes = [];
 
     for (const sheetName of workbook.SheetNames) {
       const sheet = workbook.Sheets[sheetName];
       if (!sheet || !sheet["!ref"]) continue;
 
+      const upcCol = findUPCColumn(workbook, sheetName);
+      if (!upcCol) continue;
+
       const range = XLSX.utils.decode_range(sheet["!ref"]);
-      const headers = [];
-      const hasHeaders = range.e.r >= 0 && range.e.c >= 0;
-
-      if (hasHeaders) {
-        for (let col = range.s.c; col <= range.e.c; col++) {
-          const cell = sheet[XLSX.utils.encode_cell({ r: range.s.r, c: col })];
-          const headerVal = cell?.v ? String(cell.v).trim() : `Column ${col + 1}`;
-          headers.push(headerVal);
-        }
-      }
-
-      const hasHeaderRow = headers.some(h => h && !/^\d{3,}$/.test(h));
-
-      if (hasHeaderRow && headers.length > 0) {
-        for (let col = range.s.c; col <= range.e.c; col++) {
-          const cleanBarcodes = [];
-          const rawValues = [];
-          const headerName = headers[col - range.s.c];
-
-          for (let row = range.s.r + 1; row <= range.e.r; row++) {
-            const cell = sheet[XLSX.utils.encode_cell({ r: row, c: col })];
-            if (cell && cell.v !== undefined && cell.v !== null) {
-              const val = String(cell.v).trim();
-              const type = isBarcodeLike(val);
-              if (type === "clean") {
-                cleanBarcodes.push(val);
-              } else if (type === "raw") {
-                rawValues.push(val);
-              }
-            }
-          }
-
-          if (rawValues.length > 0) {
-            needsAI = true;
-          }
-
-          allRawBySheet.push({ headerName, cleanBarcodes, rawValues, isHeaderMode: true });
-        }
-      } else {
-        const cleanBarcodes = [];
-        const rawValues = [];
-        for (let row = range.s.r; row <= range.e.r; row++) {
-          for (let col = range.s.c; col <= range.e.c; col++) {
-            const cell = sheet[XLSX.utils.encode_cell({ r: row, c: col })];
-            if (cell && cell.v) {
-              const val = String(cell.v).trim();
-              const type = isBarcodeLike(val);
-              if (type === "clean") {
-                cleanBarcodes.push(val);
-              } else if (type === "raw") {
-                rawValues.push(val);
-              }
-            }
+      for (let row = upcCol.headerRow + 1; row <= range.e.r; row++) {
+        const cell = sheet[XLSX.utils.encode_cell({ r: row, c: upcCol.col })];
+        if (cell && cell.v !== undefined && cell.v !== null) {
+          const cleaned = cleanUPCValue(cell.v);
+          if (cleaned) {
+            barcodes.push(cleaned);
           }
         }
-
-        if (rawValues.length > 0) {
-          needsAI = true;
-        }
-
-        allRawBySheet.push({ headerName: sheetName, cleanBarcodes, rawValues, isHeaderMode: false });
       }
     }
 
-    if (needsAI) {
-      showLoadingOverlay("AI is processing UPC values...");
-    }
+    const uniqueBarcodes = [...new Set(barcodes)];
 
-    try {
-      for (const entry of allRawBySheet) {
-        if (entry.rawValues.length > 0) {
-          try {
-            const aiBarcodes = await extractBarcodesFromExcelText(entry.rawValues);
-            entry.cleanBarcodes.push(...aiBarcodes);
-          } catch (aiErr) {
-            console.error("AI extraction error:", aiErr);
-            showToast(aiErr.message || "AI processing failed");
-          }
-        }
-
-        if (entry.cleanBarcodes.length > 0) {
-          results.push({
-            tableName: entry.headerName,
-            barcodes: [...new Set(entry.cleanBarcodes)]
-          });
-        }
-      }
-    } finally {
-      hideLoadingOverlay();
-    }
-
-    if (results.length === 0) {
-      showToast("No barcodes found");
+    if (uniqueBarcodes.length === 0) {
+      showToast("No UPC column found in this file");
       return;
     }
 
-    pendingExtraction = results;
-    showReviewModal(false);
+    pendingExtraction = [{
+      tableName: tableName,
+      barcodes: uniqueBarcodes
+    }];
+    showReviewModal();
 
   } catch (err) {
-    hideLoadingOverlay();
     console.error("Excel processing error:", err);
     showToast("Error processing file");
   }
 }
 
-async function processImageFile(file) {
-  showLoadingOverlay("Analyzing image...");
-
-  try {
-    const base64 = await fileToBase64(file);
-    const mimeType = file.type || "image/png";
-    const barcodes = await extractBarcodesFromImage(base64, mimeType);
-
-    hideLoadingOverlay();
-
-    if (barcodes.length === 0) {
-      showToast("No barcodes found");
-      return;
-    }
-
-    pendingExtraction = [{
-      tableName: file.name.replace(/\.[^.]+$/, ""),
-      barcodes: barcodes
-    }];
-    showReviewModal(false);
-
-  } catch (err) {
-    hideLoadingOverlay();
-    console.error("Image processing error:", err);
-    showToast(err.message || "Error processing image");
-  }
-}
-
-function showReviewModal(isDisplayPlan = false) {
+function showReviewModal() {
   const modal = document.getElementById("reviewModal");
   const content = document.getElementById("reviewContent");
   const removeCheckDigitToggle = document.getElementById("removeCheckDigitToggle");
   content.innerHTML = "";
-
-  if (isDisplayPlan) {
-    removeCheckDigitToggle.checked = false;
-  } else {
-    removeCheckDigitToggle.checked = true;
-  }
+  removeCheckDigitToggle.checked = true;
 
   selectedForExtraction = [];
 
@@ -1349,14 +924,6 @@ function addSelectedBarcodes() {
 
 function showSettingsModal() {
   const modal = document.getElementById("settingsModal");
-  const apiKeyInput = document.getElementById("apiKeyInput");
-  const statusEl = document.getElementById("apiKeyStatus");
-
-  getOpenRouterApiKey().then((key) => {
-    apiKeyInput.value = key || "";
-    statusEl.textContent = "";
-    statusEl.className = "api-key-status";
-  });
 
   document.getElementById("autoAddSearchInput").value = autoAddConfig.searchInputXPath || "";
   document.getElementById("autoAddSearchButton").value = autoAddConfig.searchButtonXPath || "";
@@ -1378,10 +945,6 @@ function closeSettingsModal() {
 }
 
 async function saveSettings() {
-  const apiKeyInput = document.getElementById("apiKeyInput");
-  const statusEl = document.getElementById("apiKeyStatus");
-  const apiKey = apiKeyInput.value.trim();
-
   const newConfig = {
     searchInputXPath: document.getElementById("autoAddSearchInput").value.trim(),
     searchButtonXPath: document.getElementById("autoAddSearchButton").value.trim(),
@@ -1398,36 +961,7 @@ async function saveSettings() {
   autoAddConfig = newConfig;
   chrome.storage.local.set({ [autoAddStorageKey]: autoAddConfig });
 
-  statusEl.innerHTML = '<span class="loading-spinner"></span> Testing...';
-  statusEl.className = "api-key-status";
-
-  if (apiKey) {
-    try {
-      const testResponse = await fetch("https://openrouter.ai/api/v1/models", {
-        headers: {
-          "Authorization": `Bearer ${apiKey}`
-        }
-      });
-
-      if (testResponse.ok) {
-        await setOpenRouterApiKey(apiKey);
-        statusEl.textContent = "API key saved successfully!";
-        statusEl.className = "api-key-status success";
-        setTimeout(closeSettingsModal, 1000);
-      } else {
-        statusEl.textContent = "Invalid API key";
-        statusEl.className = "api-key-status error";
-      }
-    } catch (err) {
-      statusEl.textContent = "Error testing API key";
-      statusEl.className = "api-key-status error";
-    }
-  } else {
-    await setOpenRouterApiKey("");
-    statusEl.textContent = "API key cleared";
-    statusEl.className = "api-key-status success";
-    setTimeout(closeSettingsModal, 1000);
-  }
+  closeSettingsModal();
 }
 
 async function searchBarcodeInSite(code) {
