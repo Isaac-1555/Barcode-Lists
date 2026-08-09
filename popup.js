@@ -679,6 +679,27 @@ function findUPCColumn(workbook, sheetName) {
   return null;
 }
 
+function findPriceColumn(workbook, sheetName) {
+  const sheet = workbook.Sheets[sheetName];
+  if (!sheet || !sheet["!ref"]) return null;
+
+  const range = XLSX.utils.decode_range(sheet["!ref"]);
+  const maxHeaderRow = Math.min(range.e.r, 9);
+
+  for (let row = range.s.r; row <= maxHeaderRow; row++) {
+    for (let col = range.s.c; col <= range.e.c; col++) {
+      const cell = sheet[XLSX.utils.encode_cell({ r: row, c: col })];
+      if (cell && cell.v !== undefined && cell.v !== null) {
+        const val = String(cell.v).trim();
+        if (val.toLowerCase().includes("tco")) {
+          return { headerRow: row, col: col };
+        }
+      }
+    }
+  }
+  return null;
+}
+
 async function processExcelFile(file) {
   showToast("Processing Excel...");
 
@@ -689,6 +710,7 @@ async function processExcelFile(file) {
     const workbook = XLSX.read(data, { type: "array" });
     const tableName = file.name.replace(/\.(xlsx|xls)$/i, "");
     const barcodes = [];
+    const prices = {};
 
     for (const sheetName of workbook.SheetNames) {
       const sheet = workbook.Sheets[sheetName];
@@ -697,6 +719,8 @@ async function processExcelFile(file) {
       const upcCol = findUPCColumn(workbook, sheetName);
       if (!upcCol) continue;
 
+      const priceCol = findPriceColumn(workbook, sheetName);
+
       const range = XLSX.utils.decode_range(sheet["!ref"]);
       for (let row = upcCol.headerRow + 1; row <= range.e.r; row++) {
         const cell = sheet[XLSX.utils.encode_cell({ r: row, c: upcCol.col })];
@@ -704,6 +728,17 @@ async function processExcelFile(file) {
           const cleaned = cleanUPCValue(cell.v);
           if (cleaned) {
             barcodes.push(cleaned);
+            if (priceCol && prices[cleaned] === undefined) {
+              const priceCell = sheet[XLSX.utils.encode_cell({ r: row, c: priceCol.col })];
+              if (priceCell && priceCell.v !== undefined && priceCell.v !== null && priceCell.v !== "") {
+                const priceVal = typeof priceCell.v === "number"
+                  ? priceCell.v.toFixed(2)
+                  : String(priceCell.v).trim();
+                if (priceVal) {
+                  prices[cleaned] = priceVal;
+                }
+              }
+            }
           }
         }
       }
@@ -718,7 +753,8 @@ async function processExcelFile(file) {
 
     pendingExtraction = [{
       tableName: tableName,
-      barcodes: uniqueBarcodes
+      barcodes: uniqueBarcodes,
+      prices: prices
     }];
     showReviewModal();
 
@@ -762,7 +798,8 @@ function showReviewModal() {
 
     group.barcodes.forEach((barcode, barcodeIndex) => {
       const index = selectedForExtraction.length;
-      selectedForExtraction.push({ selected: true, groupIndex, barcode, tableName: group.tableName });
+      const price = group.prices ? group.prices[barcode] : undefined;
+      selectedForExtraction.push({ selected: true, groupIndex, barcode, tableName: group.tableName, price });
 
       const existingCategories = Object.values(state.categories);
       const isDuplicate = existingCategories.some(cat => cat.includes(barcode));
@@ -786,6 +823,13 @@ function showReviewModal() {
 
       itemDiv.appendChild(checkbox);
       itemDiv.appendChild(valueSpan);
+
+      if (price) {
+        const priceBadge = document.createElement("span");
+        priceBadge.className = "price-badge";
+        priceBadge.textContent = `TCO ${price}`;
+        itemDiv.appendChild(priceBadge);
+      }
 
       if (isDuplicate || isInCurrentCategory) {
         const badge = document.createElement("span");
@@ -866,12 +910,29 @@ function addSelectedBarcodes() {
     }
   });
 
+  selectedForExtraction.forEach((item) => {
+    if (!item.selected || !item.price) return;
+
+    let barcode = item.barcode;
+    if (removeCheckDigit && barcode.length > 1) {
+      barcode = barcode.slice(0, -1);
+    }
+
+    if (!state.comments) {
+      state.comments = {};
+    }
+    const comment = `TCO Price: ${item.price}`;
+    state.comments[barcode] = comment;
+    if (isOnlineMode && session) {
+      saveComment(session.storeId, barcode, comment).catch(console.error);
+    }
+  });
+
   if (toAdd.length === 0) {
     showToast("No new barcodes to add");
     closeReviewModal();
     return;
   }
-
   const grouped = {};
   toAdd.forEach((item) => {
     if (!grouped[item.tableName]) {
