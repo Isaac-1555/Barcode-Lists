@@ -669,8 +669,8 @@ function findUPCColumn(workbook, sheetName) {
     for (let col = range.s.c; col <= range.e.c; col++) {
       const cell = sheet[XLSX.utils.encode_cell({ r: row, c: col })];
       if (cell && cell.v !== undefined && cell.v !== null) {
-        const val = String(cell.v).trim();
-        if (val.toLowerCase().includes("upc")) {
+        const header = String(cell.v).trim().toLowerCase();
+        if (/\bupc\b/.test(header)) {
           return { headerRow: row, col: col };
         }
       }
@@ -690,8 +690,8 @@ function findPriceColumn(workbook, sheetName) {
     for (let col = range.s.c; col <= range.e.c; col++) {
       const cell = sheet[XLSX.utils.encode_cell({ r: row, c: col })];
       if (cell && cell.v !== undefined && cell.v !== null) {
-        const val = String(cell.v).trim();
-        if (val.toLowerCase().includes("tco")) {
+        const header = String(cell.v).trim().toLowerCase();
+        if (header.includes("tco") && header.includes("price")) {
           return { headerRow: row, col: col };
         }
       }
