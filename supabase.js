@@ -447,7 +447,7 @@ async function syncFromRemote(session) {
     categories,
     comments,
     importantCategories,
-    insertedBarcodes,
+    insertedBarcodes: copiedBarcodes,
     active: filteredOrder[0] || null
   };
 }
