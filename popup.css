@@ -217,7 +217,8 @@ body {
   flex-shrink: 0;
 }
 
-.input-row input {
+.input-row input,
+.input-row textarea {
   flex: 1;
   min-width: 0;
   padding: 8px 10px;
@@ -228,7 +229,16 @@ body {
   font-size: 13px;
 }
 
-.input-row input::placeholder {
+.input-row textarea {
+  resize: none;
+  max-height: 80px;
+  overflow-y: auto;
+  font-family: inherit;
+  line-height: 1.4;
+}
+
+.input-row input::placeholder,
+.input-row textarea::placeholder {
   color: #71717a;
 }
 

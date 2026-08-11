@@ -586,11 +586,47 @@ function setupEventListeners() {
     deleteCategory(state.active);
   };
 
-  document.getElementById("barcodeInput").addEventListener("keypress", (e) => {
+  document.getElementById("barcodeInput").addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
+      e.preventDefault();
       const input = document.getElementById("barcodeInput");
-      addBarcode(input.value.trim());
+      const list = state.categories[state.active] || [];
+      const toAdd = [];
+      let skipped = 0;
+
+      input.value.split(/\r?\n/).forEach(line => {
+        const cleaned = line.replace(/\s+/g, "");
+        if (!cleaned) return;
+        if (!/^\d+$/.test(cleaned)) {
+          skipped++;
+          return;
+        }
+        if (list.includes(cleaned) || toAdd.includes(cleaned)) {
+          skipped++;
+          return;
+        }
+        toAdd.push(cleaned);
+      });
+
+      if (toAdd.length > 0) {
+        toAdd.forEach(value => {
+          list.push(value);
+          delete state.insertedBarcodes[value];
+        });
+        saveAndSync();
+        if (isOnlineMode && session) {
+          toAdd.forEach(value => {
+            addBarcodeRemote(session, state.active, value).catch(console.error);
+            unmarkBarcodeCopied(session, value).catch(console.error);
+          });
+        }
+        render();
+      }
+
+      const added = toAdd.length;
       input.value = "";
+      if (added === 0 && skipped === 0) return;
+      showToast(skipped > 0 ? `Added ${added}, skipped ${skipped}` : `Added ${added} barcode(s)`);
     }
   });
 
