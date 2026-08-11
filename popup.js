@@ -776,6 +776,15 @@ function findUPCColumn(workbook, sheetName) {
   return null;
 }
 
+function hasNoChangeComment(sheet, row) {
+  const cell = sheet[XLSX.utils.encode_cell({ r: row, c: 7 })];
+  if (cell && cell.v !== undefined && cell.v !== null) {
+    const comment = String(cell.v).trim().toLowerCase();
+    return /\b(?:no|change)\b/.test(comment);
+  }
+  return false;
+}
+
 function findPriceColumn(workbook, sheetName) {
   const sheet = workbook.Sheets[sheetName];
   if (!sheet || !sheet["!ref"]) return null;
@@ -820,6 +829,7 @@ async function processExcelFile(file) {
 
       const range = XLSX.utils.decode_range(sheet["!ref"]);
       for (let row = upcCol.headerRow + 1; row <= range.e.r; row++) {
+        if (priceCol && hasNoChangeComment(sheet, row)) continue;
         const cell = sheet[XLSX.utils.encode_cell({ r: row, c: upcCol.col })];
         if (cell && cell.v !== undefined && cell.v !== null) {
           const cleaned = cleanUPCValue(cell.v);
