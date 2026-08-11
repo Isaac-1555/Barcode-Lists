@@ -391,6 +391,95 @@ body {
   transform: translateX(-50%) translateY(-5px);
 }
 
+.run-toast {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 300px;
+  max-width: 90%;
+  background: #111113;
+  border: 1px solid #2a2a2e;
+  border-radius: 12px;
+  padding: 16px;
+  z-index: 500;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: center;
+}
+
+.run-toast-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.run-toast-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #f87171;
+}
+
+.run-toast-close {
+  font-size: 20px;
+  color: #71717a;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.run-toast-close:hover {
+  color: #e4e4e7;
+}
+
+.run-toast-sub {
+  margin: 0;
+  font-size: 12px;
+  color: #a1a1aa;
+}
+
+.run-toast-progress {
+  font-size: 13px;
+  font-weight: 600;
+  color: #e4e4e7;
+  font-family: monospace;
+}
+
+.run-toast-tip {
+  font-size: 11px;
+  color: #71717a;
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.run-toast-actions {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
+.run-toast-btn {
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: none;
+  font-size: 11px;
+  cursor: pointer;
+  background: #27272a;
+  color: #e4e4e7;
+  transition: background 0.2s;
+}
+
+.run-toast-btn:hover {
+  background: #3f3f46;
+}
+
+.run-toast-toggle {
+  margin-bottom: 4px;
+}
+
 .login-screen {
   position: fixed;
   top: 0;

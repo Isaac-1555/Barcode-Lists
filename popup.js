@@ -1,5 +1,6 @@
 const storageKey = "barcodeData";
 const autoAddStorageKey = "autoAddConfig";
+const runToastStorageKey = "dontShowRunToast";
 
 const DEFAULT_AUTO_ADD_CONFIG = {
   searchInputXPath: '//*[@id="undefined_input"]',
@@ -17,6 +18,9 @@ const DEFAULT_AUTO_ADD_CONFIG = {
 
 let autoAddConfig = { ...DEFAULT_AUTO_ADD_CONFIG };
 let autoAddRunning = false;
+let dontShowRunToast = false;
+let runToastSuppressed = false;
+let runTipInterval = null;
 
 let state = {
   categoryOrder: [],
@@ -151,6 +155,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
   if (msg.type === "AUTO_ADD_PROGRESS") {
     updateAutoAddStatus(`${msg.index}/${msg.total}: ${msg.barcode}`);
+    if (!dontShowRunToast && !runToastSuppressed) {
+      showRunToast(msg.total);
+      document.getElementById("runToastProgress").textContent = `${msg.index} / ${msg.total} done`;
+    }
   }
   if (msg.type === "AUTO_ADD_DONE") {
     const skipped = msg.skipped || 0;
@@ -196,6 +204,9 @@ async function loadState() {
   }
   
   isOnlineMode = await isOnline();
+
+  const runToastResult = await chrome.storage.local.get(runToastStorageKey);
+  dontShowRunToast = !!runToastResult[runToastStorageKey];
 
   const autoAddResult = await chrome.storage.local.get(autoAddStorageKey);
   if (autoAddResult[autoAddStorageKey]) {
@@ -615,6 +626,10 @@ function setupEventListeners() {
   document.getElementById("closeSettingsModal").onclick = closeSettingsModal;
   document.getElementById("cancelSettingsBtn").onclick = closeSettingsModal;
   document.getElementById("saveSettingsBtn").onclick = saveSettings;
+
+  document.getElementById("runToastClose").onclick = () => suppressRunToast(false);
+  document.getElementById("runToastDismiss").onclick = () => suppressRunToast(false);
+  document.getElementById("runToastNever").onclick = () => suppressRunToast(true);
 }
 
 function showToast(msg) {
@@ -625,6 +640,52 @@ function showToast(msg) {
   setTimeout(() => {
     toast.classList.remove("show");
   }, 1500);
+}
+
+const autoRunTips = [
+  "Upload an Excel file to import hundreds of barcodes at once.",
+  "Prices from a TCO Price column are saved as automatic comments.",
+  "The check-digit option strips the last digit on import.",
+  "Categories named with a leading * glow red as important.",
+  "Your lists sync to the phone app when you're online.",
+  "Drag categories to reorder them.",
+  "Barcodes already in a list are flagged as duplicates on import.",
+  "Searched barcodes show purple after they've been added."
+];
+
+function showRunToast(total) {
+  const el = document.getElementById("runToast");
+  runToastSuppressed = false;
+  if (total > 0) {
+    document.getElementById("runToastProgress").textContent = `0 / ${total} done`;
+  }
+  rotateRunTip();
+  if (runTipInterval) clearInterval(runTipInterval);
+  runTipInterval = setInterval(rotateRunTip, 4000);
+  el.style.display = "flex";
+}
+
+function rotateRunTip() {
+  const tip = autoRunTips[Math.floor(Math.random() * autoRunTips.length)];
+  document.getElementById("runToastTip").textContent = "\u2728 " + tip;
+}
+
+function hideRunToast() {
+  const el = document.getElementById("runToast");
+  el.style.display = "none";
+  if (runTipInterval) {
+    clearInterval(runTipInterval);
+    runTipInterval = null;
+  }
+}
+
+async function suppressRunToast(forever) {
+  runToastSuppressed = true;
+  hideRunToast();
+  if (forever) {
+    dontShowRunToast = true;
+    await chrome.storage.local.set({ [runToastStorageKey]: true });
+  }
 }
 
 function showLoadingOverlay(msg) {
@@ -977,6 +1038,8 @@ function addSelectedBarcodes() {
 function showSettingsModal() {
   const modal = document.getElementById("settingsModal");
 
+  document.getElementById("showRunToastToggle").checked = !dontShowRunToast;
+
   document.getElementById("autoAddSearchInput").value = autoAddConfig.searchInputXPath || "";
   document.getElementById("autoAddSearchButton").value = autoAddConfig.searchButtonXPath || "";
   document.getElementById("autoAddCheckbox").value = autoAddConfig.checkboxXPath || "";
@@ -1012,6 +1075,10 @@ async function saveSettings() {
   };
   autoAddConfig = newConfig;
   chrome.storage.local.set({ [autoAddStorageKey]: autoAddConfig });
+
+  const showRunToast = document.getElementById("showRunToastToggle").checked;
+  dontShowRunToast = !showRunToast;
+  chrome.storage.local.set({ [runToastStorageKey]: !showRunToast });
 
   closeSettingsModal();
 }
@@ -1066,6 +1133,10 @@ async function startBatchAdd() {
 
   setAutoAddRunning(true);
 
+  if (!dontShowRunToast) {
+    showRunToast(barcodes.length);
+  }
+
   try {
     await chrome.tabs.sendMessage(tab.id, {
       type: "AUTO_ADD_BATCH_START",
@@ -1076,6 +1147,7 @@ async function startBatchAdd() {
     });
   } catch (err) {
     setAutoAddRunning(false);
+    hideRunToast();
     updateAutoAddStatus("No content script on this page");
     showToast("Open the target site tab first");
   }
@@ -1110,6 +1182,7 @@ function updateAutoAddStatus(text) {
 
 function finishAutoAdd(text) {
   setAutoAddRunning(false);
+  hideRunToast();
   updateAutoAddStatus(text);
   setTimeout(() => {
     if (!autoAddRunning) {

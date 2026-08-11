@@ -71,6 +71,20 @@
 
   <div id="toast"></div>
 
+  <div id="runToast" class="run-toast" style="display: none;">
+    <div class="run-toast-header">
+      <span class="run-toast-title">Don't click away</span>
+      <span id="runToastClose" class="run-toast-close" title="Close">&times;</span>
+    </div>
+    <p class="run-toast-sub">Automation is running. Don't switch tabs or click the site — it could mess up the run.</p>
+    <div class="run-toast-progress" id="runToastProgress"></div>
+    <div class="run-toast-tip" id="runToastTip"></div>
+    <div class="run-toast-actions">
+      <button id="runToastDismiss" class="run-toast-btn">Hide</button>
+      <button id="runToastNever" class="run-toast-btn">Don't show this again</button>
+    </div>
+  </div>
+
   <div id="loadingOverlay" class="loading-overlay" style="display: none;">
     <div class="loading-box">
       <span class="loading-spinner-lg"></span>
@@ -109,6 +123,11 @@
         <span id="closeSettingsModal" class="modal-close">&times;</span>
       </div>
       <div class="modal-body">
+        <label class="review-toggle run-toast-toggle">
+          <input type="checkbox" id="showRunToastToggle" checked />
+          <span>Show "Don't click away" toast when automation runs</span>
+        </label>
+        <hr class="settings-divider" />
         <label class="settings-label">Auto Add XPath Settings</label>
         <input type="text" id="autoAddSearchInput" placeholder="Search box XPath" class="settings-input" />
         <input type="text" id="autoAddSearchButton" placeholder="Search button XPath" class="settings-input" />
