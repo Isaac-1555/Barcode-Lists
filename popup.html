@@ -25,6 +25,9 @@
         <span id="storeLabel">Store</span>
         <div class="sidebar-actions">
           <span id="syncStatus" class="sync-status" title="Sync status"></span>
+          <span id="trashBinBtn" class="icon-btn" title="Trash">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
+          </span>
           <span id="logoutBtn" class="icon-btn" title="Logout">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
           </span>
@@ -111,6 +114,22 @@
         <div class="modal-actions">
           <button id="cancelReviewBtn" class="cancel-btn">Cancel</button>
           <button id="addSelectedBtn" class="add-btn">Add Selected</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="trashModal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Trash</h3>
+        <span id="closeTrashModal" class="modal-close">&times;</span>
+      </div>
+      <div id="trashContent" class="modal-body"></div>
+      <div class="modal-footer">
+        <button id="emptyTrashBtn" class="cancel-btn">Empty Trash</button>
+        <div class="modal-actions">
+          <button id="closeTrashModalBtn" class="cancel-btn">Close</button>
         </div>
       </div>
     </div>

@@ -728,6 +728,80 @@ body {
   background: #3f3f46;
 }
 
+#trashBinBtn:hover {
+  background: #3f3f46;
+  color: #e4e4e7;
+}
+
+.trash-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  background: #18181b;
+  border: 1px solid #2a2a2e;
+  border-radius: 8px;
+  gap: 10px;
+}
+
+.trash-item-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.trash-item-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #e4e4e7;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.trash-item-info {
+  font-size: 11px;
+  color: #71717a;
+}
+
+.trash-item-important {
+  color: #f87171;
+}
+
+.trash-item-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.trash-item-actions button {
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: none;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.2s;
+  color: white;
+}
+
+.trash-restore-btn {
+  background: #22c55e;
+}
+
+.trash-restore-btn:hover {
+  background: #16a34a;
+}
+
+.trash-delete-btn {
+  background: #7f1d1d;
+}
+
+.trash-delete-btn:hover {
+  background: #b91c1c;
+}
+
 .table-group {
   margin-bottom: 16px;
 }

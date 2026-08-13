@@ -1,6 +1,7 @@
 const storageKey = "barcodeData";
 const autoAddStorageKey = "autoAddConfig";
 const runToastStorageKey = "dontShowRunToast";
+const trashStorageKey = "trashData";
 
 const DEFAULT_AUTO_ADD_CONFIG = {
   searchInputXPath: '//*[@id="undefined_input"]',
@@ -38,6 +39,7 @@ let draggedItem = null;
 let draggedIndex = -1;
 let pendingExtraction = [];
 let selectedForExtraction = [];
+let trash = [];
 
 document.addEventListener("DOMContentLoaded", async () => {
   chrome.action.setBadgeText({ text: "" }).catch(() => {});
@@ -202,6 +204,11 @@ async function loadState() {
     state.unopenedCategories = saved.unopenedCategories || {};
     state.importantCategories = saved.importantCategories || {};
   }
+
+  const trashResult = await chrome.storage.local.get(trashStorageKey);
+  if (trashResult[trashStorageKey]) {
+    trash = trashResult[trashStorageKey];
+  }
   
   isOnlineMode = await isOnline();
 
@@ -226,6 +233,10 @@ function saveState() {
       importantCategories: state.importantCategories
     }
   });
+}
+
+function saveTrash() {
+  chrome.storage.local.set({ [trashStorageKey]: trash });
 }
 
 async function saveAndSync() {
@@ -272,9 +283,28 @@ function createCategory(name) {
 }
 
 function deleteCategory(name) {
-  if (!confirm("Delete this category?")) return;
+  if (!confirm("Delete this category? It will go to the trash bin.")) return;
 
   const deletedName = name;
+  const barcodes = state.categories[deletedName] || [];
+  const important = !!state.importantCategories[deletedName];
+  const movedComments = {};
+  barcodes.forEach(b => {
+    if (state.comments && state.comments[b]) {
+      movedComments[b] = state.comments[b];
+      delete state.comments[b];
+    }
+  });
+
+  trash.unshift({
+    name: deletedName,
+    barcodes,
+    comments: movedComments,
+    important,
+    deletedAt: new Date().toISOString()
+  });
+  saveTrash();
+
   delete state.categories[deletedName];
   delete state.unopenedCategories[deletedName];
   delete state.importantCategories[deletedName];
@@ -287,6 +317,174 @@ function deleteCategory(name) {
     unmarkCategoryImportant(session, deletedName).catch(console.error);
   }
   render();
+}
+
+function uniqueCategoryName(base) {
+  if (!state.categories[base]) return base;
+  let n = 2;
+  let candidate = `${base} (restored)`;
+  while (state.categories[candidate]) {
+    candidate = `${base} (restored ${n})`;
+    n++;
+  }
+  return candidate;
+}
+
+function restoreCategory(index) {
+  const entry = trash[index];
+  if (!entry) return;
+
+  const name = uniqueCategoryName(entry.name);
+  state.categories[name] = [...entry.barcodes];
+  state.categoryOrder.push(name);
+  state.active = name;
+
+  if (entry.comments) {
+    if (!state.comments) state.comments = {};
+    Object.entries(entry.comments).forEach(([b, c]) => {
+      state.comments[b] = c;
+    });
+  }
+  if (entry.important) {
+    state.importantCategories[name] = true;
+  }
+  saveAndSync();
+
+  if (isOnlineMode && session) {
+    syncCategoryOrder(session, state.categoryOrder).catch(console.error);
+    if (entry.important) {
+      markCategoryImportant(session, name).catch(console.error);
+    }
+    entry.barcodes.forEach(b => {
+      addBarcodeRemote(session, name, b).catch(console.error);
+    });
+    if (entry.comments) {
+      Object.entries(entry.comments).forEach(([b, c]) => {
+        saveComment(session.storeId, b, c).catch(console.error);
+      });
+    }
+  }
+
+  trash.splice(index, 1);
+  saveTrash();
+  closeTrashModal();
+  render();
+  showToast(`Restored "${name}"`);
+}
+
+function deleteTrashEntry(index) {
+  const entry = trash[index];
+  if (!entry) return;
+  if (!confirm(`Permanently delete "${entry.name}" and all ${entry.barcodes.length} barcode(s)?`)) return;
+
+  if (entry.comments) {
+    Object.keys(entry.comments).forEach(b => {
+      delete state.comments[b];
+      if (isOnlineMode && session) {
+        deleteComment(session.storeId, b).catch(console.error);
+      }
+    });
+    saveState();
+  }
+
+  trash.splice(index, 1);
+  saveTrash();
+  renderTrashModal();
+  showToast(`Permanently deleted "${entry.name}"`);
+}
+
+function emptyTrash() {
+  if (trash.length === 0) return;
+  if (!confirm(`Permanently delete all ${trash.length} trashed list(s)?`)) return;
+
+  if (isOnlineMode && session) {
+    trash.forEach(entry => {
+      if (entry.comments) {
+        Object.keys(entry.comments).forEach(b => {
+          deleteComment(session.storeId, b).catch(console.error);
+        });
+      }
+    });
+  }
+  trash.forEach(entry => {
+    if (entry.comments) {
+      Object.keys(entry.comments).forEach(b => {
+        delete state.comments[b];
+      });
+    }
+  });
+  saveState();
+
+  trash = [];
+  saveTrash();
+  renderTrashModal();
+  showToast("Trash emptied");
+}
+
+function showTrashModal() {
+  renderTrashModal();
+  document.getElementById("trashModal").style.display = "flex";
+}
+
+function closeTrashModal() {
+  document.getElementById("trashModal").style.display = "none";
+}
+
+function renderTrashModal() {
+  const content = document.getElementById("trashContent");
+  content.innerHTML = "";
+
+  if (trash.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "empty-state";
+    empty.textContent = "Trash is empty";
+    content.appendChild(empty);
+    return;
+  }
+
+  trash.forEach((entry, index) => {
+    const item = document.createElement("div");
+    item.className = "trash-item";
+
+    const meta = document.createElement("div");
+    meta.className = "trash-item-meta";
+
+    const nameSpan = document.createElement("span");
+    nameSpan.className = "trash-item-name";
+    nameSpan.textContent = entry.name;
+    if (entry.important) {
+      nameSpan.classList.add("trash-item-important");
+    }
+
+    const info = document.createElement("span");
+    info.className = "trash-item-info";
+    const date = entry.deletedAt ? new Date(entry.deletedAt) : null;
+    const dateStr = date ? date.toLocaleString() : "";
+    info.textContent = `${entry.barcodes.length} barcode(s)${entry.important ? " \u2022 important" : ""}${dateStr ? " \u2022 " + dateStr : ""}`;
+
+    meta.appendChild(nameSpan);
+    meta.appendChild(info);
+    item.appendChild(meta);
+
+    const actions = document.createElement("div");
+    actions.className = "trash-item-actions";
+
+    const restoreBtn = document.createElement("button");
+    restoreBtn.className = "trash-restore-btn";
+    restoreBtn.textContent = "Restore";
+    restoreBtn.onclick = () => restoreCategory(index);
+
+    const deleteBtn = document.createElement("button");
+    deleteBtn.className = "trash-delete-btn";
+    deleteBtn.textContent = "Delete";
+    deleteBtn.onclick = () => deleteTrashEntry(index);
+
+    actions.appendChild(restoreBtn);
+    actions.appendChild(deleteBtn);
+    item.appendChild(actions);
+
+    content.appendChild(item);
+  });
 }
 
 function renameCategory(oldName, newName) {
@@ -644,6 +842,11 @@ function setupEventListeners() {
   document.getElementById("fileInput").onchange = handleFileUpload;
 
   document.getElementById("settingsBtn").onclick = showSettingsModal;
+
+  document.getElementById("trashBinBtn").onclick = showTrashModal;
+  document.getElementById("closeTrashModal").onclick = closeTrashModal;
+  document.getElementById("closeTrashModalBtn").onclick = closeTrashModal;
+  document.getElementById("emptyTrashBtn").onclick = emptyTrash;
 
   document.getElementById("batchAddBtn").onclick = () => {
     if (autoAddRunning) {
