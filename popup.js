@@ -102,6 +102,7 @@ async function initApp() {
   
   if (isOnlineMode) {
     try {
+      const previousActive = state.active;
       const remoteState = await syncFromRemote(session);
       state.categoryOrder = remoteState.categoryOrder;
       state.categories = remoteState.categories;
@@ -109,6 +110,9 @@ async function initApp() {
       state.insertedBarcodes = remoteState.insertedBarcodes;
       state.importantCategories = remoteState.importantCategories;
       state.active = remoteState.active;
+      if (previousActive && remoteState.categoryOrder.includes(previousActive)) {
+        state.active = previousActive;
+      }
       saveState();
     } catch (err) {
       console.log("Sync failed, using local data:", err);
@@ -125,6 +129,7 @@ async function initApp() {
 async function loadRemoteData() {
   if (!isOnlineMode || !session) return;
   try {
+    const previousActive = state.active;
     const remoteState = await syncFromRemote(session);
     const oldOrder = state.categoryOrder;
     const newCategories = remoteState.categoryOrder.filter(n => !oldOrder.includes(n));
@@ -135,6 +140,9 @@ async function loadRemoteData() {
     state.insertedBarcodes = remoteState.insertedBarcodes;
     state.importantCategories = remoteState.importantCategories;
     state.active = remoteState.active;
+    if (previousActive && remoteState.categoryOrder.includes(previousActive)) {
+      state.active = previousActive;
+    }
     saveState();
 
     for (const name of newCategories) {
