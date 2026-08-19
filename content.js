@@ -111,6 +111,15 @@ async function runAutoAddFlow(barcodes, config, preSetup) {
     if (!autoAddState.skipLoop && !autoAddState.stopped) {
       await runAutoAddLoop(barcodes, config);
     }
+    if (!autoAddState.stopped && config.endStepXPath) {
+      const endEl = await waitForElementClickable(config.endStepXPath, config.timeoutMs);
+      if (endEl) {
+        endEl.click();
+        console.log("[BarcodeLists] clicked end step breadcrumb");
+      } else {
+        sendToExtension({ type: "AUTO_ADD_ERROR", barcode: "-", message: "End step (breadcrumb) not found" });
+      }
+    }
   } finally {
     const stopped = autoAddState.stopped;
     const added = autoAddState.added || 0;

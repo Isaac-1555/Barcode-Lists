@@ -119,6 +119,10 @@
         <div id="actionDropDown-other"><span>Other option (should NOT be picked)</span></div>
       </div>
     </div>
+
+    <div id="cui-breadcrumb_0" hidden>
+      <a href="#" data-action="go-start"><cui-string><span>Back to start</span></cui-string></a>
+    </div>
   </div>
 
   <div class="panel">
@@ -198,6 +202,7 @@
           document.getElementById("batchCreatePanel").hidden = true;
           document.getElementById("batchCreatedBadge").hidden = false;
           document.getElementById("batchToolbar").hidden = false;
+          document.getElementById("cui-breadcrumb_0").hidden = false;
           batchDone = true;
           setBadge("batchStatusBadge", "batch created", true);
           log("batch created");
@@ -224,6 +229,10 @@
           break;
         case "add":
           doAdd();
+          break;
+        case "go-start":
+          setBadge("batchStatusBadge", "back at start", true);
+          log("end step clicked breadcrumb");
           break;
       }
     });
@@ -288,6 +297,7 @@
       document.getElementById("batchCreatePanel").hidden = true;
       document.getElementById("batchCreatedBadge").hidden = true;
       document.getElementById("batchToolbar").hidden = true;
+      document.getElementById("cui-breadcrumb_0").hidden = true;
       document.getElementById("signsMenu").hidden = true;
       document.getElementById("resultsArea").hidden = true;
       document.getElementById("undefined").value = "";

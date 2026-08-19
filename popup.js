@@ -13,6 +13,7 @@ const DEFAULT_AUTO_ADD_CONFIG = {
   batchCreateConfirmXPath: '//*[@id="app_container"]/ppr-batch-create/div/div/div/cui-button[1]/span/button',
   signsDropdownXPath: '//*[@id="copyId_button"]',
   itemLibraryOptionXPath: '//*[@id="actionDropDown"]/span',
+  endStepXPath: '//*[@id="cui-breadcrumb_0"]/a/cui-string/span',
   delayMs: 1500,
   timeoutMs: 8000
 };
@@ -1306,6 +1307,7 @@ function showSettingsModal() {
   document.getElementById("batchConfirmCreate").value = autoAddConfig.batchCreateConfirmXPath || "";
   document.getElementById("batchSignsDropdown").value = autoAddConfig.signsDropdownXPath || "";
   document.getElementById("batchItemLibrary").value = autoAddConfig.itemLibraryOptionXPath || "";
+  document.getElementById("batchEndStep").value = autoAddConfig.endStepXPath || "";
   document.getElementById("autoAddDelay").value = autoAddConfig.delayMs || "";
   document.getElementById("autoAddTimeout").value = autoAddConfig.timeoutMs || "";
 
@@ -1327,6 +1329,7 @@ async function saveSettings() {
     batchCreateConfirmXPath: document.getElementById("batchConfirmCreate").value.trim(),
     signsDropdownXPath: document.getElementById("batchSignsDropdown").value.trim(),
     itemLibraryOptionXPath: document.getElementById("batchItemLibrary").value.trim(),
+    endStepXPath: document.getElementById("batchEndStep").value.trim(),
     delayMs: parseInt(document.getElementById("autoAddDelay").value) || 1500,
     timeoutMs: parseInt(document.getElementById("autoAddTimeout").value) || 8000
   };
