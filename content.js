@@ -3,7 +3,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     showOverlay(msg.message);
   }
   if (msg.type === "AUTO_ADD_BATCH_START") {
-    startAutoAddBatch(msg.barcodes, msg.config, msg.category, msg.batchName);
+    startAutoAddBatch(msg.batches, msg.config);
   }
   if (msg.type === "SEARCH_BARCODE") {
     searchBarcode(msg.barcode, msg.config);
@@ -96,39 +96,66 @@ function sendToExtension(msg) {
   }
 }
 
-function startAutoAddBatch(barcodes, config, category, batchName) {
-  runAutoAddFlow(barcodes, config, () => doBatchSetup(config, batchName));
+function startAutoAddBatch(batches, config) {
+  runAutoAddBatches(batches, config);
 }
 
-async function runAutoAddFlow(barcodes, config, preSetup) {
+async function runAutoAddBatches(batches, config) {
   if (autoAddState) return;
-  autoAddState = { stopped: false, skipLoop: false };
+  autoAddState = { stopped: false, skipLoop: false, totalAdded: 0, totalSkipped: 0 };
+
+  let grandTotal = 0;
+  batches.forEach(b => { grandTotal += b.barcodes.length; });
 
   try {
-    if (preSetup) {
-      await preSetup();
-    }
-    if (!autoAddState.skipLoop && !autoAddState.stopped) {
-      await runAutoAddLoop(barcodes, config);
-    }
-    if (!autoAddState.stopped && config.endStepXPath) {
-      const endEl = await waitForElementClickable(config.endStepXPath, config.timeoutMs);
-      if (endEl) {
-        endEl.click();
-        console.log("[BarcodeLists] clicked end step breadcrumb");
-      } else {
-        sendToExtension({ type: "AUTO_ADD_ERROR", barcode: "-", message: "End step (breadcrumb) not found" });
+    for (let b = 0; b < batches.length; b++) {
+      if (autoAddState.stopped) break;
+      const batch = batches[b];
+      autoAddState.skipLoop = false;
+
+      sendToExtension({
+        type: "AUTO_ADD_BATCH_STARTING",
+        batchName: batch.name,
+        batchIndex: b + 1,
+        batchCount: batches.length
+      });
+
+      await doBatchSetup(config, batch.name);
+
+      if (!autoAddState.skipLoop && !autoAddState.stopped) {
+        await runAutoAddLoop(batch.barcodes, config, batch.name, b + 1, batches.length);
+      }
+
+      if (!autoAddState.stopped && config.endStepXPath) {
+        const endEl = await waitForElementClickable(config.endStepXPath, config.timeoutMs);
+        if (endEl) {
+          endEl.click();
+          console.log("[BarcodeLists] clicked end step breadcrumb");
+        } else {
+          sendToExtension({ type: "AUTO_ADD_ERROR", barcode: "-", message: `End step (breadcrumb) not found after: ${batch.name}` });
+        }
+        await sleep(config.delayMs);
+      }
+
+      if (!autoAddState.stopped) {
+        sendToExtension({
+          type: "AUTO_ADD_BATCH_DONE",
+          batchName: batch.name,
+          added: autoAddState.curAdded || 0,
+          skipped: autoAddState.curSkipped || 0,
+          total: batch.barcodes.length
+        });
       }
     }
   } finally {
     const stopped = autoAddState.stopped;
-    const added = autoAddState.added || 0;
-    const skipped = autoAddState.skipped || 0;
+    const added = autoAddState.totalAdded || 0;
+    const skipped = autoAddState.totalSkipped || 0;
     autoAddState = null;
     if (stopped) {
       sendToExtension({ type: "AUTO_ADD_STOPPED" });
     } else {
-      sendToExtension({ type: "AUTO_ADD_DONE", added, skipped, total: barcodes.length });
+      sendToExtension({ type: "AUTO_ADD_DONE", added, skipped, total: grandTotal, batches: batches.length });
     }
   }
 }
@@ -183,7 +210,7 @@ async function doBatchSetup(config, batchName) {
   await sleep(config.delayMs);
 }
 
-async function runAutoAddLoop(barcodes, config) {
+async function runAutoAddLoop(barcodes, config, batchName, batchIndex, batchCount) {
   let added = 0;
   let skipped = 0;
 
@@ -191,7 +218,15 @@ async function runAutoAddLoop(barcodes, config) {
     if (autoAddState.stopped) break;
     const barcode = barcodes[i];
 
-    sendToExtension({ type: "AUTO_ADD_PROGRESS", index: i + 1, total: barcodes.length, barcode });
+    sendToExtension({
+      type: "AUTO_ADD_PROGRESS",
+      index: i + 1,
+      total: barcodes.length,
+      barcode,
+      batchName,
+      batchIndex,
+      batchCount
+    });
 
     const inputEl = getByXPath(config.searchInputXPath);
     if (!inputEl) {
@@ -235,8 +270,10 @@ async function runAutoAddLoop(barcodes, config) {
     }
   }
 
-  autoAddState.added = added;
-  autoAddState.skipped = skipped;
+  autoAddState.curAdded = added;
+  autoAddState.curSkipped = skipped;
+  autoAddState.totalAdded += added;
+  autoAddState.totalSkipped += skipped;
 }
 
 async function searchBarcode(barcode, config) {

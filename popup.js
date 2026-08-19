@@ -41,6 +41,8 @@ let draggedIndex = -1;
 let pendingExtraction = [];
 let selectedForExtraction = [];
 let trash = [];
+let selectedBatches = [];
+let runningBatches = [];
 
 document.addEventListener("DOMContentLoaded", async () => {
   chrome.action.setBadgeText({ text: "" }).catch(() => {});
@@ -165,19 +167,38 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
   if (msg.type === "AUTO_ADD_PROGRESS") {
-    updateAutoAddStatus(`${msg.index}/${msg.total}: ${msg.barcode}`);
+    const listCtx = msg.batchCount > 1 ? `List ${msg.batchIndex}/${msg.batchCount} · ` : "";
+    updateAutoAddStatus(`${listCtx}${msg.batchName}: ${msg.index}/${msg.total} ${msg.barcode}`);
     if (!dontShowRunToast && !runToastSuppressed) {
       showRunToast(msg.total);
-      document.getElementById("runToastProgress").textContent = `${msg.index} / ${msg.total} done`;
+      document.getElementById("runToastProgress").textContent = `${listCtx}${msg.batchName}: ${msg.index} / ${msg.total}`;
     }
+  }
+  if (msg.type === "AUTO_ADD_BATCH_STARTING") {
+    const batch = runningBatches.find(b => b.name === msg.batchName);
+    const listCtx = msg.batchCount > 1 ? `List ${msg.batchIndex}/${msg.batchCount} · ` : "";
+    updateAutoAddStatus(`Starting ${listCtx}${msg.batchName} (${batch ? batch.barcodes.length : "?"} barcodes)`);
+    if (!dontShowRunToast && !runToastSuppressed) {
+      showRunToast(batch ? batch.barcodes.length : 0);
+    }
+  }
+  if (msg.type === "AUTO_ADD_BATCH_DONE") {
+    const skippedText = msg.skipped > 0 ? ` (${msg.skipped} skipped)` : "";
+    updateAutoAddStatus(`List "${msg.batchName}" done: ${msg.added}/${msg.total}${skippedText}`);
   }
   if (msg.type === "AUTO_ADD_DONE") {
     const skipped = msg.skipped || 0;
+    const listCount = msg.batches || 1;
     const summary = skipped > 0
-      ? `Done: ${msg.added}/${msg.total} (${skipped} skipped)`
-      : `Done: ${msg.added}/${msg.total}`;
+      ? `Done: ${msg.added}/${msg.total} across ${listCount} list(s) (${skipped} skipped)`
+      : `Done: ${msg.added}/${msg.total} across ${listCount} list(s)`;
     finishAutoAdd(summary);
     showToast(skipped > 0 ? `Auto-added ${msg.added}, skipped ${skipped}` : `Auto-added ${msg.added} barcode(s)`);
+    if (selectedBatches.length > 0) {
+      selectedBatches = [];
+      renderCategories();
+      renderBatchCount();
+    }
   }
   if (msg.type === "AUTO_ADD_ERROR") {
     updateAutoAddStatus(`Skipped ${msg.barcode}: ${msg.message}`);
@@ -573,9 +594,38 @@ function renderCategories() {
 
   state.categoryOrder.forEach((name, index) => {
     const li = document.createElement("li");
-    li.textContent = name;
     li.draggable = true;
     li.dataset.index = index;
+
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.className = "category-checkbox";
+    checkbox.title = "Include this list in batch auto-add";
+    checkbox.checked = selectedBatches.includes(name);
+    const isSelected = selectedBatches.includes(name);
+    if (isSelected) {
+      li.classList.add("selected");
+    }
+    checkbox.addEventListener("click", (e) => {
+      e.stopPropagation();
+    });
+    checkbox.addEventListener("change", () => {
+      if (checkbox.checked) {
+        if (!selectedBatches.includes(name)) {
+          selectedBatches.push(name);
+        }
+      } else {
+        selectedBatches = selectedBatches.filter(n => n !== name);
+      }
+      li.classList.toggle("selected", checkbox.checked);
+      renderBatchCount();
+    });
+    li.appendChild(checkbox);
+
+    const label = document.createElement("span");
+    label.className = "category-name";
+    label.textContent = name;
+    li.appendChild(label);
 
     if (name === state.active) {
       li.classList.add("active");
@@ -610,6 +660,14 @@ function renderCategories() {
   });
 
   document.getElementById("categoryName").value = state.active || "";
+  renderBatchCount();
+}
+
+function renderBatchCount() {
+  const bar = document.getElementById("batchSelectionBar");
+  const count = selectedBatches.length;
+  document.getElementById("batchSelectionCount").textContent = `${count} list${count === 1 ? "" : "s"} selected`;
+  bar.style.display = count > 0 ? "flex" : "none";
 }
 
 function handleDragStart(e) {
@@ -846,6 +904,11 @@ function setupEventListeners() {
 
   document.getElementById("uploadBtn").onclick = () => {
     document.getElementById("fileInput").click();
+  };
+
+  document.getElementById("clearBatchSelection").onclick = () => {
+    selectedBatches = [];
+    renderCategories();
   };
 
   document.getElementById("fileInput").onchange = handleFileUpload;
@@ -1362,10 +1425,21 @@ async function searchBarcodeInSite(code) {
 }
 
 async function startBatchAdd() {
-  const barcodes = state.active ? (state.categories[state.active] || []) : [];
+  let batches = [];
 
-  if (barcodes.length === 0) {
-    showToast("No barcodes in this list");
+  if (selectedBatches.length > 0) {
+    batches = selectedBatches
+      .map(n => ({ name: n, barcodes: state.categories[n] || [] }))
+      .filter(b => b.barcodes.length > 0);
+  } else {
+    const barcodes = state.active ? (state.categories[state.active] || []) : [];
+    if (barcodes.length > 0) {
+      batches = [{ name: state.active, barcodes }];
+    }
+  }
+
+  if (batches.length === 0) {
+    showToast("No barcodes in the selected list(s)");
     return;
   }
 
@@ -1391,19 +1465,18 @@ async function startBatchAdd() {
     return;
   }
 
+  runningBatches = batches;
   setAutoAddRunning(true);
 
   if (!dontShowRunToast) {
-    showRunToast(barcodes.length);
+    showRunToast(batches.reduce((sum, b) => sum + b.barcodes.length, 0));
   }
 
   try {
     await chrome.tabs.sendMessage(tab.id, {
       type: "AUTO_ADD_BATCH_START",
-      barcodes: barcodes,
-      config: autoAddConfig,
-      category: state.active,
-      batchName: state.active
+      batches: batches.map(b => ({ name: b.name, barcodes: b.barcodes })),
+      config: autoAddConfig
     });
   } catch (err) {
     setAutoAddRunning(false);
@@ -1443,6 +1516,7 @@ function updateAutoAddStatus(text) {
 function finishAutoAdd(text) {
   setAutoAddRunning(false);
   hideRunToast();
+  runningBatches = [];
   updateAutoAddStatus(text);
   setTimeout(() => {
     if (!autoAddRunning) {

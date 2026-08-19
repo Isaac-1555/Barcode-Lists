@@ -74,15 +74,63 @@ body {
 }
 
 #categoryList li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding: 8px 10px;
   border-radius: 6px;
   font-size: 13px;
   cursor: pointer;
   color: #d4d4d8;
   transition: background 0.2s;
+}
+
+#categoryList li .category-name {
+  flex: 1;
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.category-checkbox {
+  width: 14px;
+  height: 14px;
+  accent-color: #22c55e;
+  cursor: pointer;
+  flex-shrink: 0;
+  margin: 0;
+}
+
+#categoryList li.selected {
+  outline: 1px solid #22c55e;
+  outline-offset: -1px;
+}
+
+.batch-selection-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 6px 10px;
+  border-top: 1px solid #2a2a2e;
+  font-size: 11px;
+  color: #a1a1aa;
+  flex-shrink: 0;
+}
+
+.batch-selection-clear {
+  background: #27272a;
+  border: none;
+  color: #e4e4e7;
+  border-radius: 4px;
+  font-size: 11px;
+  padding: 3px 8px;
+  cursor: pointer;
+}
+
+.batch-selection-clear:hover {
+  background: #3f3f46;
 }
 
 #categoryList li:hover {
