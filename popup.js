@@ -14,15 +14,15 @@ const DEFAULT_AUTO_ADD_CONFIG = {
   signsDropdownXPath: '//*[@id="copyId_button"]',
   itemLibraryOptionXPath: '//*[@id="actionDropDown"]/span',
   endStepXPath: '//*[@id="cui-breadcrumb_0"]/a/cui-string/span',
-  tcoChangeTemplateXPath: '//*[@id="itemFilter"]/div[2]/div/div[1]/div[2]/div[1]/div/div/div[2]/span[1]',
+  tcoChangeTemplateXPath: '//*[@id="assetFilter"]/div[2]/div/div/div/cui-toolbar/div/cui-toolbar-group[5]/div/cui-button/span/button',
   tcoTemplateOptionXPath: '//*[@id="container"]/div[4]/ppr-card-component/div/div[1]',
-  tcoApplyTemplateXPath: '//*[@id="app_container"]/ppr-item-lib/div/cui-modal/div/div[2]/div[1]/cui-modal-footer/cui-priv-block/div/cui-button[2]/span/button',
+  tcoApplyTemplateXPath: '//*[@id="app_container"]/ppr-sign-grid/div/cui-modal/div/div[2]/div[1]/cui-modal-footer/cui-priv-block/div/cui-button[2]/span/button',
   tcoOpenBatchXPath: '//*[@id="cui-breadcrumb_1"]/a/cui-string/span',
   tcoSelectAllXPath: '//*[@id="SignView-select-all"]/span',
   tcoEditSignXPath: '//*[@id="SignView-row-0-name"]/ppr-data-grid-viewsign-click/a',
   tcoPriceFieldXPath: '//*[@id="7054"]',
   tcoSaveButtonXPath: '//*[@id="app_container"]/ppr-sign-edit/div/div/ppr-single-sign-edit/div/div[1]/div[1]/div/div/div[1]/cui-button[2]/span/button',
-  tcoBackToBatchXPath: '//*[@id="cui-breadcrumb_1"]',
+  tcoBackToBatchXPath: '//*[@id="cui-breadcrumb_1"]/a/cui-string/span',
   delayMs: 1500,
   timeoutMs: 8000
 };
@@ -282,8 +282,20 @@ async function loadState() {
   const autoAddResult = await chrome.storage.local.get(autoAddStorageKey);
   if (autoAddResult[autoAddStorageKey]) {
     autoAddConfig = { ...DEFAULT_AUTO_ADD_CONFIG, ...autoAddResult[autoAddStorageKey] };
-    if (autoAddConfig.tcoSelectAllXPath === '//*[@id="ItemView-select-all"]/span') {
-      autoAddConfig.tcoSelectAllXPath = DEFAULT_AUTO_ADD_CONFIG.tcoSelectAllXPath;
+    const staleDefaults = {
+      tcoSelectAllXPath: ['//*[@id="ItemView-select-all"]/span'],
+      tcoChangeTemplateXPath: ['//*[@id="itemFilter"]/div[2]/div/div[1]/div[2]/div[1]/div/div/div[2]/span[1]'],
+      tcoApplyTemplateXPath: ['//*[@id="app_container"]/ppr-item-lib/div/cui-modal/div/div[2]/div[1]/cui-modal-footer/cui-priv-block/div/cui-button[2]/span/button'],
+      tcoBackToBatchXPath: ['//*[@id="cui-breadcrumb_1"]']
+    };
+    let migrated = false;
+    for (const [key, stale] of Object.entries(staleDefaults)) {
+      if (stale.includes(autoAddConfig[key])) {
+        autoAddConfig[key] = DEFAULT_AUTO_ADD_CONFIG[key];
+        migrated = true;
+      }
+    }
+    if (migrated) {
       chrome.storage.local.set({ [autoAddStorageKey]: autoAddConfig });
     }
   }
