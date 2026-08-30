@@ -107,42 +107,92 @@ function startTcoBatches(batches, config) {
   runTcoBatches(batches, config);
 }
 
-async function runTcoBatches(batches, config) {
+const TCO_RESUME_KEY = "tcoResume";
+const TCO_RESUME_TTL_MS = 120000;
+
+async function setTcoResume(data) {
+  try {
+    await chrome.storage.local.set({ [TCO_RESUME_KEY]: { ...data, ts: Date.now() } });
+  } catch (err) {
+    console.log("[BarcodeLists] could not persist TCO resume state");
+  }
+}
+
+async function getTcoResume() {
+  try {
+    const result = await chrome.storage.local.get(TCO_RESUME_KEY);
+    const data = result[TCO_RESUME_KEY];
+    if (!data || !data.batches || !data.config) return null;
+    if (Date.now() - (data.ts || 0) > TCO_RESUME_TTL_MS) {
+      clearTcoResume();
+      return null;
+    }
+    return data;
+  } catch (err) {
+    return null;
+  }
+}
+
+function clearTcoResume() {
+  try {
+    chrome.storage.local.remove(TCO_RESUME_KEY);
+  } catch (err) {}
+}
+
+async function runTcoBatches(batches, config, resumeData) {
   if (autoAddState) return;
-  autoAddState = { stopped: false, skipLoop: false, totalAdded: 0, totalSkipped: 0, totalEdited: 0, totalEditSkipped: 0 };
+  const startIndex = resumeData ? resumeData.batchIndex : 0;
+  autoAddState = resumeData
+    ? {
+        stopped: false,
+        skipLoop: false,
+        totalAdded: resumeData.totalAdded || 0,
+        totalSkipped: resumeData.totalSkipped || 0,
+        totalEdited: resumeData.totalEdited || 0,
+        totalEditSkipped: resumeData.totalEditSkipped || 0,
+        curAdded: resumeData.curAdded || 0,
+        curSkipped: resumeData.curSkipped || 0
+      }
+    : { stopped: false, skipLoop: false, totalAdded: 0, totalSkipped: 0, totalEdited: 0, totalEditSkipped: 0 };
 
   let grandTotal = 0;
   batches.forEach(b => { grandTotal += b.barcodes.length; });
 
   try {
-    for (let b = 0; b < batches.length; b++) {
+    for (let b = startIndex; b < batches.length; b++) {
       if (autoAddState.stopped) break;
       const batch = batches[b];
       autoAddState.skipLoop = false;
+      const resumedBatch = !!resumeData && b === startIndex;
 
-      sendToExtension({
-        type: "AUTO_ADD_BATCH_STARTING",
-        batchName: batch.name,
-        batchIndex: b + 1,
-        batchCount: batches.length
-      });
+      if (!resumedBatch) {
+        sendToExtension({
+          type: "AUTO_ADD_BATCH_STARTING",
+          batchName: batch.name,
+          batchIndex: b + 1,
+          batchCount: batches.length
+        });
 
-      await doBatchSetup(config, batch.name);
+        await doBatchSetup(config, batch.name);
 
-      if (!autoAddState.skipLoop && !autoAddState.stopped) {
-        await runAutoAddLoop(batch.barcodes, config, batch.name, b + 1, batches.length);
+        if (!autoAddState.skipLoop && !autoAddState.stopped) {
+          await runAutoAddLoop(batch.barcodes, config, batch.name, b + 1, batches.length);
+        }
       }
 
       let editSkipped = 0;
       if (!autoAddState.skipLoop && !autoAddState.stopped) {
-        const opened = await openBatchAndSelectAll(config);
+        const opened = await openBatchAndSelectAll(config, batch, b, batches, resumedBatch);
         if (opened) {
           const editResult = await runTcoEditLoop(batch, config, b + 1, batches.length);
           editSkipped = editResult.skipped;
         }
       }
 
+      if (autoAddState.reloading) return;
+
       if (!autoAddState.stopped) {
+        clearTcoResume();
         sendToExtension({
           type: "AUTO_ADD_BATCH_DONE",
           batchName: batch.name,
@@ -153,11 +203,14 @@ async function runTcoBatches(batches, config) {
       }
     }
   } finally {
-    const stopped = autoAddState.stopped;
-    const added = autoAddState.totalAdded || 0;
-    const edited = autoAddState.totalEdited || 0;
-    const skipped = (autoAddState.totalSkipped || 0) + (autoAddState.totalEditSkipped || 0);
+    const wasReloading = autoAddState && autoAddState.reloading;
+    const stopped = autoAddState && autoAddState.stopped;
+    const added = autoAddState ? (autoAddState.totalAdded || 0) : 0;
+    const edited = autoAddState ? (autoAddState.totalEdited || 0) : 0;
+    const skipped = autoAddState ? ((autoAddState.totalSkipped || 0) + (autoAddState.totalEditSkipped || 0)) : 0;
     autoAddState = null;
+    if (wasReloading) return;
+    clearTcoResume();
     if (stopped) {
       sendToExtension({ type: "AUTO_ADD_STOPPED" });
     } else {
@@ -282,17 +335,36 @@ async function doBatchSetup(config, batchName) {
   await sleep(config.delayMs);
 }
 
-async function openBatchAndSelectAll(config) {
-  sendToExtension({ type: "AUTO_STATUS", message: "Opening batch..." });
-  const openEl = await waitForElementClickable(config.tcoOpenBatchXPath, config.timeoutMs);
-  if (!openEl) {
-    sendToExtension({ type: "AUTO_ADD_ERROR", barcode: "-", message: "Open batch (breadcrumb) not found" });
-    autoAddState.skipLoop = true;
+async function openBatchAndSelectAll(config, batch, batchIndex, batches, skipOpen) {
+  if (!skipOpen) {
+    sendToExtension({ type: "AUTO_STATUS", message: "Opening batch..." });
+    const openEl = await waitForElementClickable(config.tcoOpenBatchXPath, config.timeoutMs);
+    if (!openEl) {
+      sendToExtension({ type: "AUTO_ADD_ERROR", barcode: "-", message: "Open batch (breadcrumb) not found" });
+      autoAddState.skipLoop = true;
+      return false;
+    }
+    openEl.click();
+    console.log("[BarcodeLists] opened the created batch");
+    await sleep(config.delayMs);
+
+    sendToExtension({ type: "AUTO_STATUS", message: "Refreshing batch..." });
+    await setTcoResume({
+      batches,
+      config,
+      batchIndex,
+      phase: "afterOpen",
+      curAdded: autoAddState.curAdded || 0,
+      curSkipped: autoAddState.curSkipped || 0,
+      totalAdded: autoAddState.totalAdded || 0,
+      totalSkipped: autoAddState.totalSkipped || 0,
+      totalEdited: autoAddState.totalEdited || 0,
+      totalEditSkipped: autoAddState.totalEditSkipped || 0
+    });
+    autoAddState.reloading = true;
+    location.reload();
     return false;
   }
-  openEl.click();
-  console.log("[BarcodeLists] opened the created batch");
-  await sleep(config.delayMs);
 
   sendToExtension({ type: "AUTO_STATUS", message: "Selecting all signs..." });
   const selectAllEl = await waitForElementClickable(config.tcoSelectAllXPath, config.timeoutMs);
@@ -533,8 +605,24 @@ async function searchBarcode(barcode, config) {
 function stopAutoAdd() {
   if (autoAddState) {
     autoAddState.stopped = true;
+    clearTcoResume();
+    return;
   }
+  getTcoResume().then((data) => {
+    if (data) {
+      clearTcoResume();
+      sendToExtension({ type: "AUTO_ADD_STOPPED" });
+    }
+  });
 }
+
+(async function resumeTcoIfPending() {
+  const data = await getTcoResume();
+  if (!data || autoAddState) return;
+  clearTcoResume();
+  console.log("[BarcodeLists] resuming TCO automation after refresh");
+  runTcoBatches(data.batches, data.config, data);
+})();
 
 function showOverlay(message) {
   const div = document.createElement("div");
