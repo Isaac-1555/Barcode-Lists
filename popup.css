@@ -181,6 +181,11 @@ body {
   color: white;
 }
 
+.main-header input:focus {
+  outline: none;
+  border-bottom-color: #71717a;
+}
+
 .header-buttons {
   display: flex;
   gap: 6px;

@@ -573,6 +573,44 @@ function renameCategory(oldName, newName) {
   render();
 }
 
+function commitCategoryRename() {
+  const input = document.getElementById("categoryName");
+  const raw = input.value.trim();
+  if (!raw || raw === state.active) {
+    input.value = state.active || "";
+    return;
+  }
+
+  const isImportant = raw.startsWith("*");
+  const newName = raw.replace(/^\*+/, "").trim();
+  if (!newName || newName === state.active) {
+    input.value = state.active || "";
+    return;
+  }
+  if (state.categories[newName]) {
+    showToast("A list with that name already exists");
+    input.value = state.active || "";
+    return;
+  }
+
+  const wasImportant = !!state.importantCategories[state.active];
+  if (isImportant && !wasImportant) {
+    state.importantCategories[newName] = true;
+  }
+  renameCategory(state.active, newName);
+  if (isImportant && !wasImportant && isOnlineMode && session) {
+    markCategoryImportant(session, newName).catch(console.error);
+  }
+}
+
+function generateNewCategoryName() {
+  const base = "New List";
+  if (!state.categories[base]) return base;
+  let i = 2;
+  while (state.categories[`${base} ${i}`]) i++;
+  return `${base} ${i}`;
+}
+
 function addBarcode(value) {
   if (!/^\d+$/.test(value)) {
     showToast("Numbers only");
@@ -872,15 +910,32 @@ function saveBarcodeComment(code, comment) {
 }
 
 function setupEventListeners() {
+  const nameInput = document.getElementById("categoryName");
+
   document.getElementById("addCategoryBtn").onclick = () => {
-    const name = prompt("Category name:");
-    createCategory(name);
+    createCategory(generateNewCategoryName());
+    nameInput.focus();
+    nameInput.select();
   };
 
   document.getElementById("renameCategoryBtn").onclick = () => {
-    const newName = prompt("New name:");
-    renameCategory(state.active, newName);
+    nameInput.focus();
+    nameInput.select();
   };
+
+  nameInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      nameInput.blur();
+    } else if (e.key === "Escape") {
+      nameInput.value = state.active || "";
+      nameInput.blur();
+    }
+  });
+
+  nameInput.addEventListener("blur", () => {
+    commitCategoryRename();
+  });
 
   document.getElementById("deleteCategoryBtn").onclick = () => {
     deleteCategory(state.active);
