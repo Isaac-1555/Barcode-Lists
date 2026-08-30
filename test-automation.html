@@ -120,6 +120,106 @@
       </div>
     </div>
 
+    <div id="itemFilter" hidden>
+      <div></div>
+      <div>
+        <div>
+          <div>
+            <div></div>
+            <div>
+              <div>
+                <div>
+                  <div>
+                    <div></div>
+                    <div>
+                      <span data-action="change-template">Change template</span>
+                      <span>Other filter option</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="container" hidden>
+      <div></div>
+      <div></div>
+      <div></div>
+      <div>
+        <ppr-card-component>
+          <div>
+            <div data-action="select-template">12up Managers' Special</div>
+            <div>Other template card</div>
+          </div>
+        </ppr-card-component>
+      </div>
+    </div>
+
+    <ppr-item-lib id="itemLibModal" hidden>
+      <div>
+        <cui-modal>
+          <div>
+            <div></div>
+            <div>
+              <div>
+                <cui-modal-footer>
+                  <cui-priv-block>
+                    <div>
+                      <cui-button><span><button type="button">Cancel</button></span></cui-button>
+                      <cui-button><span><button type="button" data-action="apply-template">Apply Template</button></span></cui-button>
+                    </div>
+                  </cui-priv-block>
+                </cui-modal-footer>
+              </div>
+            </div>
+          </div>
+        </cui-modal>
+      </div>
+    </ppr-item-lib>
+
+    <div id="cui-breadcrumb_1" hidden>
+      <a href="#" data-action="open-created-batch"><cui-string><span>Open created batch</span></cui-string></a>
+    </div>
+
+    <div id="signViewPanel" hidden>
+      <div class="row" style="justify-content:space-between;">
+        <strong>Batch Signs</strong>
+        <span class="badge" id="signViewBadge">idle</span>
+      </div>
+      <div id="SignView-row-0-name" hidden>
+        <ppr-data-grid-viewsign-click>
+          <a href="#" data-action="open-sign-edit">View / edit sign</a>
+        </ppr-data-grid-viewsign-click>
+      </div>
+    </div>
+
+    <ppr-sign-edit id="signEditPanel" hidden>
+      <div>
+        <div>
+          <ppr-single-sign-edit>
+            <div>
+              <div>
+                <div>
+                  <div>
+            <div>
+              <div>
+                <cui-button><span><button type="button">Back</button></span></cui-button>
+                <cui-button><span><button type="button" data-action="save-sign">Save</button></span></cui-button>
+              </div>
+            </div>
+                  </div>
+                </div>
+              </div>
+              <input type="text" id="7054" placeholder="TCO price" autocomplete="off" />
+            </div>
+          </ppr-single-sign-edit>
+        </div>
+      </div>
+    </ppr-sign-edit>
+
     <div id="cui-breadcrumb_0" hidden>
       <a href="#" data-action="go-start"><cui-string><span>Back to start</span></cui-string></a>
     </div>
@@ -162,6 +262,10 @@
     var logEl = document.getElementById("log");
     var addedCount = 0;
     var batchDone = false;
+    var batchOpen = false;
+    var signsSelected = false;
+    var pricesSaved = 0;
+    var addedBarcodes = [];
 
     function log(msg, isErr) {
       var t = new Date().toLocaleTimeString();
@@ -203,6 +307,8 @@
           document.getElementById("batchCreatedBadge").hidden = false;
           document.getElementById("batchToolbar").hidden = false;
           document.getElementById("cui-breadcrumb_0").hidden = false;
+          document.getElementById("cui-breadcrumb_1").hidden = false;
+          document.getElementById("itemFilter").hidden = false;
           batchDone = true;
           setBadge("batchStatusBadge", "batch created", true);
           log("batch created");
@@ -220,6 +326,48 @@
           document.getElementById("signsMenu").hidden = true;
           setBadge("batchStatusBadge", "item library set", true);
           log("picked option: " + t.textContent.trim());
+          break;
+        case "change-template":
+          if (!batchOpen || addedBarcodes.length === 0) {
+            log("change template blocked: batch must contain at least one sign first", true);
+            break;
+          }
+          if (!signsSelected) {
+            log("change template blocked: select all signs first", true);
+            break;
+          }
+          document.getElementById("container").hidden = false;
+          document.getElementById("itemLibModal").hidden = false;
+          setBadge("batchStatusBadge", "template picked", true);
+          log("clicked change template");
+          break;
+        case "select-template":
+          setBadge("batchStatusBadge", "12up Managers' Special selected", true);
+          log("selected template: " + t.textContent.trim());
+          break;
+        case "apply-template":
+          document.getElementById("itemLibModal").hidden = true;
+          document.getElementById("container").hidden = true;
+          setBadge("batchStatusBadge", "template applied", true);
+          log("applied template to " + addedBarcodes.length + " sign(s)");
+          break;
+        case "open-created-batch":
+          batchOpen = true;
+          document.getElementById("signViewPanel").hidden = false;
+          setBadge("batchStatusBadge", "batch open", true);
+          log("opened the created batch");
+          break;
+        case "open-sign-edit":
+          document.getElementById("signEditPanel").hidden = false;
+          log("opened sign edit sheet");
+          break;
+        case "save-sign":
+          var priceVal = document.getElementById("7054").value.trim();
+          pricesSaved++;
+          document.getElementById("signEditPanel").hidden = true;
+          document.getElementById("signViewBadge").textContent = "saved: " + pricesSaved;
+          document.getElementById("signViewBadge").className = "badge on";
+          log("SAVED TCO price \"" + priceVal + "\" (count " + pricesSaved + ")");
           break;
         case "search":
           doSearch();
@@ -250,6 +398,12 @@
         log("search attempted with empty input", true);
         return;
       }
+      if (batchOpen) {
+        document.getElementById("SignView-row-0-name").hidden = false;
+        setBadge("signViewBadge", "found: " + v, true);
+        log("searched in batch: " + v);
+        return;
+      }
       showResult(v);
       log("searched: " + v);
       setBadge("searchStatusBadge", "result found", true);
@@ -265,13 +419,18 @@
 
     document.getElementById("undefined_input").addEventListener("input", function (ev) {
       var v = ev.target.value.trim();
-      if (v) {
+      if (v && !batchOpen) {
         showResult(v);
         setBadge("searchStatusBadge", "result found", true);
       }
     });
 
     function toggleCheck(el) {
+      if (batchOpen) {
+        signsSelected = true;
+        log("SELECTED ALL signs (" + addedBarcodes.length + ")");
+        return;
+      }
       var checked = el.dataset.checked === "true";
       checked = !checked;
       el.dataset.checked = String(checked);
@@ -283,6 +442,7 @@
       var check = document.querySelector("#ItemView-select-all span");
       if (check.dataset.checked === "true") {
         addedCount++;
+        addedBarcodes.push(document.getElementById("resultLabel").textContent);
         document.getElementById("addedCount").textContent = addedCount;
         log("ADDED barcode (count " + addedCount + ")");
       } else {
@@ -293,17 +453,30 @@
     document.getElementById("resetBtn").addEventListener("click", function () {
       addedCount = 0;
       batchDone = false;
+      batchOpen = false;
+      signsSelected = false;
+      pricesSaved = 0;
+      addedBarcodes = [];
       document.getElementById("addedCount").textContent = "0";
       document.getElementById("batchCreatePanel").hidden = true;
       document.getElementById("batchCreatedBadge").hidden = true;
       document.getElementById("batchToolbar").hidden = true;
       document.getElementById("cui-breadcrumb_0").hidden = true;
+      document.getElementById("cui-breadcrumb_1").hidden = true;
+      document.getElementById("itemFilter").hidden = true;
+      document.getElementById("container").hidden = true;
+      document.getElementById("itemLibModal").hidden = true;
+      document.getElementById("signViewPanel").hidden = true;
+      document.getElementById("SignView-row-0-name").hidden = true;
+      document.getElementById("signEditPanel").hidden = true;
       document.getElementById("signsMenu").hidden = true;
       document.getElementById("resultsArea").hidden = true;
       document.getElementById("undefined").value = "";
       document.getElementById("undefined_input").value = "";
+      document.getElementById("7054").value = "";
       setBadge("batchStatusBadge", "batch idle", false);
       setBadge("searchStatusBadge", "idle", false);
+      setBadge("signViewBadge", "idle", false);
       logEl.innerHTML = "";
       log("state reset");
     });

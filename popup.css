@@ -230,6 +230,22 @@ body {
   background: #b91c1c;
 }
 
+#tcoBatchAddBtn {
+  background: #a16207;
+}
+
+#tcoBatchAddBtn:hover {
+  background: #eab308;
+}
+
+#tcoBatchAddBtn.running {
+  background: #7f1d1d;
+}
+
+#tcoBatchAddBtn.running:hover {
+  background: #b91c1c;
+}
+
 .auto-add-status {
   font-size: 11px;
   color: #a1a1aa;

@@ -57,6 +57,9 @@
             <button id="batchAddBtn" title="Create batch and auto-add" class="batch-add-btn">
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3H8"/><path d="m15.007 5.008 3.987 3.986"/><path d="M20 15v4"/><path d="M21.174 6.813a2.82 2.82 0 0 0-3.986-3.987L3.842 16.175a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="M22 17h-4"/><path d="M4 5v4"/><path d="M6 7H2"/><path d="M9 2v2"/></svg>
             </button>
+            <button id="tcoBatchAddBtn" title="Create batch, add signs and set TCO prices" class="batch-add-btn" style="display: none;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 2v2"/><path d="M12 3h-2"/><path d="M13.5 10.5 22 2"/><path d="M14.734 13.841a2 2 0 0 0-.314-2.42L12.58 9.58a2 2 0 0 0-2.421-.314l-7.657 4.461A1 1 0 0 0 2.3 15.3l6.403 6.403a1 1 0 0 0 1.571-.204z"/><path d="M20 15v4"/><path d="M22 17h-4"/><path d="M4 4v4"/><path d="m5 18 2-2"/><path d="M6 6H2"/><path d="m7.699 10.7 5.602 5.601"/></svg>
+            </button>
           </div>
           <div id="autoAddStatus" class="auto-add-status" style="display: none;"></div>
         </div>
@@ -176,6 +179,18 @@
         <input type="text" id="batchItemLibrary" placeholder="Item Library option XPath" class="settings-input" />
         <input type="text" id="batchEndStep" placeholder="End step XPath (breadcrumb to start)" class="settings-input" />
         <p class="settings-hint">Runs once before the loop: create batch, name it after the list, create, open Add signs, pick Item Library. End step clicks the breadcrumb after the loop finishes.</p>
+        <hr class="settings-divider" />
+        <label class="settings-label">TCO Automation XPath Settings (yellow broom button)</label>
+        <input type="text" id="tcoChangeTemplate" placeholder="Change template button XPath" class="settings-input" />
+        <input type="text" id="tcoTemplateOption" placeholder="Template card XPath (12up Managers' Special)" class="settings-input" />
+        <input type="text" id="tcoApplyTemplate" placeholder="Apply template button XPath" class="settings-input" />
+        <input type="text" id="tcoOpenBatch" placeholder="Open created batch XPath (breadcrumb)" class="settings-input" />
+        <input type="text" id="tcoSelectAll" placeholder="Select all signs in batch XPath" class="settings-input" />
+        <input type="text" id="tcoEditSign" placeholder="Edit sign link XPath (search result row)" class="settings-input" />
+        <input type="text" id="tcoPriceField" placeholder="TCO price field XPath (sign edit)" class="settings-input" />
+        <input type="text" id="tcoSaveButton" placeholder="Save button XPath (sign edit)" class="settings-input" />
+        <input type="text" id="tcoBackToBatch" placeholder="Back to batch list XPath (breadcrumb)" class="settings-input" />
+        <p class="settings-hint">Yellow button runs when the selected list has barcodes with "TCO Price" comments. Adds every barcode exactly like the blue button (create batch, Add signs, From item library), then opens the created batch, selects all signs, applies the template, and finally sets each sign's price from the barcode comment.</p>
       </div>
       <div class="modal-footer">
         <button id="saveSettingsBtn" class="add-btn">Save</button>

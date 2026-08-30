@@ -19,6 +19,13 @@ A Chrome Extension (Manifest V3) for retail and store employees to store, organi
 - Live progress readout (`3/50: 012345678901`) and a stop button that halts mid-loop
 - Stops and reports the barcode if any element can't be found
 
+### TCO Automation (Yellow Button)
+- When the active list (or selected lists) contain barcodes with "TCO Price" comments, the blue sparkles button is replaced by a yellow broom-sparkles button
+- Creates the batch, names it after the list, applies the "12up Managers' Special" template, then adds every barcode as a sign
+- After adding, it reopens the batch and edits each sign: searches the barcode, opens the sign edit sheet, replaces the price field value with the TCO price from the barcode comment, saves, and returns to the batch list
+- Barcodes without a TCO comment are added to the batch but skipped in the price-edit pass (counted as skipped)
+- All eight TCO-specific XPath selectors (change template, template card, apply template, open batch, edit sign, price field, save button, back to batch) are configurable in Settings
+
 ### Category Organization
 - Create, rename, and delete categories (e.g., "Dairy", "Produce")
 - Drag-and-drop category reordering via HTML5 drag events
@@ -75,7 +82,7 @@ Barcode_saver/
 |---|---|
 | `background.js` | Service worker. Sets `chrome.sidePanel` to open when the extension icon is clicked. |
 | `popup.js` | Application core. Manages in-memory state, DOM rendering, category/barcode CRUD, file uploads, drag-and-drop, review modal, settings, and auto-add control. |
-| `content.js` | Page automation. Overlay notifications and the auto-add engine that enters barcodes into the active tab via configurable XPath selectors. |
+| `content.js` | Page automation. Overlay notifications and the auto-add engine (blue sparkles: batch + signs, yellow broom: TCO prices) that enters barcodes into the active tab via configurable XPath selectors. |
 | `supabase.js` | Data layer. Handles store authentication (`login`/`logout`/`getSession`), connectivity checks (`isOnline`), and bidirectional sync (`syncFromRemote`/`syncToRemote`) via raw `fetch()` calls to Supabase REST. |
 | `popup.html` | Single-page UI structure: login screen, main app (sidebar + content), toast element, loading overlay, review modal, settings modal. |
 | `popup.css` | Complete dark theme with flexbox layout, modal system, toast notifications, loading spinner, sync status indicator, and styled form controls. |

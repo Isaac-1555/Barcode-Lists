@@ -14,6 +14,15 @@ const DEFAULT_AUTO_ADD_CONFIG = {
   signsDropdownXPath: '//*[@id="copyId_button"]',
   itemLibraryOptionXPath: '//*[@id="actionDropDown"]/span',
   endStepXPath: '//*[@id="cui-breadcrumb_0"]/a/cui-string/span',
+  tcoChangeTemplateXPath: '//*[@id="itemFilter"]/div[2]/div/div[1]/div[2]/div[1]/div/div/div[2]/span[1]',
+  tcoTemplateOptionXPath: '//*[@id="container"]/div[4]/ppr-card-component/div/div[1]',
+  tcoApplyTemplateXPath: '//*[@id="app_container"]/ppr-item-lib/div/cui-modal/div/div[2]/div[1]/cui-modal-footer/cui-priv-block/div/cui-button[2]/span/button',
+  tcoOpenBatchXPath: '//*[@id="cui-breadcrumb_1"]/a/cui-string/span',
+  tcoSelectAllXPath: '//*[@id="ItemView-select-all"]/span',
+  tcoEditSignXPath: '//*[@id="SignView-row-0-name"]/ppr-data-grid-viewsign-click/a',
+  tcoPriceFieldXPath: '//*[@id="7054"]',
+  tcoSaveButtonXPath: '//*[@id="app_container"]/ppr-sign-edit/div/div/ppr-single-sign-edit/div/div[1]/div[1]/div/div/div[1]/cui-button[2]/span/button',
+  tcoBackToBatchXPath: '//*[@id="cui-breadcrumb_1"]',
   delayMs: 1500,
   timeoutMs: 8000
 };
@@ -199,6 +208,31 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       renderCategories();
       renderBatchCount();
     }
+  }
+  if (msg.type === "AUTO_TCO_EDIT_PROGRESS") {
+    const listCtx = msg.batchCount > 1 ? `List ${msg.batchIndex}/${msg.batchCount} · ` : "";
+    updateAutoAddStatus(`Prices ${listCtx}${msg.batchName}: ${msg.index}/${msg.total} ${msg.barcode}`);
+    if (!dontShowRunToast && !runToastSuppressed) {
+      showRunToast(msg.total);
+      document.getElementById("runToastProgress").textContent = `Prices ${listCtx}${msg.batchName}: ${msg.index} / ${msg.total}`;
+    }
+  }
+  if (msg.type === "AUTO_TCO_DONE") {
+    const skipped = msg.skipped || 0;
+    const listCount = msg.batches || 1;
+    const summary = skipped > 0
+      ? `TCO done: ${msg.added}/${msg.total} across ${listCount} list(s) (${skipped} skipped)`
+      : `TCO done: ${msg.added}/${msg.total} across ${listCount} list(s)`;
+    finishAutoAdd(summary);
+    showToast(`TCO prices set: ${msg.edited || 0}`);
+    if (selectedBatches.length > 0) {
+      selectedBatches = [];
+      renderCategories();
+      renderBatchCount();
+    }
+  }
+  if (msg.type === "AUTO_STATUS") {
+    updateAutoAddStatus(msg.message);
   }
   if (msg.type === "AUTO_ADD_ERROR") {
     updateAutoAddStatus(`Skipped ${msg.barcode}: ${msg.message}`);
@@ -668,6 +702,7 @@ function renderBatchCount() {
   const count = selectedBatches.length;
   document.getElementById("batchSelectionCount").textContent = `${count} list${count === 1 ? "" : "s"} selected`;
   bar.style.display = count > 0 ? "flex" : "none";
+  updateAutomationButtons();
 }
 
 function handleDragStart(e) {
@@ -928,6 +963,14 @@ function setupEventListeners() {
     }
   };
 
+  document.getElementById("tcoBatchAddBtn").onclick = () => {
+    if (autoAddRunning) {
+      stopAutoAdd();
+    } else {
+      startTcoBatchAdd();
+    }
+  };
+
   document.getElementById("closeReviewModal").onclick = closeReviewModal;
   document.getElementById("cancelReviewBtn").onclick = closeReviewModal;
   document.getElementById("selectAllBtn").onclick = () => selectAllItems(true);
@@ -956,6 +999,7 @@ function showToast(msg) {
 const autoRunTips = [
   "Upload an Excel file to import hundreds of barcodes at once.",
   "Prices from a TCO Price column are saved as automatic comments.",
+  "The yellow broom button runs the TCO automation on lists with TCO price comments.",
   "The check-digit option strips the last digit on import.",
   "Categories named with a leading * glow red as important.",
   "Your lists sync to the phone app when you're online.",
@@ -1371,6 +1415,15 @@ function showSettingsModal() {
   document.getElementById("batchSignsDropdown").value = autoAddConfig.signsDropdownXPath || "";
   document.getElementById("batchItemLibrary").value = autoAddConfig.itemLibraryOptionXPath || "";
   document.getElementById("batchEndStep").value = autoAddConfig.endStepXPath || "";
+  document.getElementById("tcoChangeTemplate").value = autoAddConfig.tcoChangeTemplateXPath || "";
+  document.getElementById("tcoTemplateOption").value = autoAddConfig.tcoTemplateOptionXPath || "";
+  document.getElementById("tcoApplyTemplate").value = autoAddConfig.tcoApplyTemplateXPath || "";
+  document.getElementById("tcoOpenBatch").value = autoAddConfig.tcoOpenBatchXPath || "";
+  document.getElementById("tcoSelectAll").value = autoAddConfig.tcoSelectAllXPath || "";
+  document.getElementById("tcoEditSign").value = autoAddConfig.tcoEditSignXPath || "";
+  document.getElementById("tcoPriceField").value = autoAddConfig.tcoPriceFieldXPath || "";
+  document.getElementById("tcoSaveButton").value = autoAddConfig.tcoSaveButtonXPath || "";
+  document.getElementById("tcoBackToBatch").value = autoAddConfig.tcoBackToBatchXPath || "";
   document.getElementById("autoAddDelay").value = autoAddConfig.delayMs || "";
   document.getElementById("autoAddTimeout").value = autoAddConfig.timeoutMs || "";
 
@@ -1393,6 +1446,15 @@ async function saveSettings() {
     signsDropdownXPath: document.getElementById("batchSignsDropdown").value.trim(),
     itemLibraryOptionXPath: document.getElementById("batchItemLibrary").value.trim(),
     endStepXPath: document.getElementById("batchEndStep").value.trim(),
+    tcoChangeTemplateXPath: document.getElementById("tcoChangeTemplate").value.trim(),
+    tcoTemplateOptionXPath: document.getElementById("tcoTemplateOption").value.trim(),
+    tcoApplyTemplateXPath: document.getElementById("tcoApplyTemplate").value.trim(),
+    tcoOpenBatchXPath: document.getElementById("tcoOpenBatch").value.trim(),
+    tcoSelectAllXPath: document.getElementById("tcoSelectAll").value.trim(),
+    tcoEditSignXPath: document.getElementById("tcoEditSign").value.trim(),
+    tcoPriceFieldXPath: document.getElementById("tcoPriceField").value.trim(),
+    tcoSaveButtonXPath: document.getElementById("tcoSaveButton").value.trim(),
+    tcoBackToBatchXPath: document.getElementById("tcoBackToBatch").value.trim(),
     delayMs: parseInt(document.getElementById("autoAddDelay").value) || 1500,
     timeoutMs: parseInt(document.getElementById("autoAddTimeout").value) || 8000
   };
@@ -1424,45 +1486,48 @@ async function searchBarcodeInSite(code) {
   }
 }
 
-async function startBatchAdd() {
-  let batches = [];
-
+function resolveRunBatches() {
   if (selectedBatches.length > 0) {
-    batches = selectedBatches
+    return selectedBatches
       .map(n => ({ name: n, barcodes: state.categories[n] || [] }))
       .filter(b => b.barcodes.length > 0);
-  } else {
-    const barcodes = state.active ? (state.categories[state.active] || []) : [];
-    if (barcodes.length > 0) {
-      batches = [{ name: state.active, barcodes }];
-    }
   }
+  const barcodes = state.active ? (state.categories[state.active] || []) : [];
+  return barcodes.length > 0 ? [{ name: state.active, barcodes }] : [];
+}
 
-  if (batches.length === 0) {
-    showToast("No barcodes in the selected list(s)");
-    return;
-  }
-
+function getMissingXpaths(includeTco) {
   const missing = [];
   if (!autoAddConfig.batchCreateButtonXPath) missing.push("create batch");
   if (!autoAddConfig.batchNameInputXPath) missing.push("batch name box");
   if (!autoAddConfig.batchCreateConfirmXPath) missing.push("create confirm");
   if (!autoAddConfig.signsDropdownXPath) missing.push("add signs dropdown");
-  if (!autoAddConfig.itemLibraryOptionXPath) missing.push("item library");
   if (!autoAddConfig.searchInputXPath) missing.push("search box");
   if (!autoAddConfig.searchButtonXPath) missing.push("search button");
   if (!autoAddConfig.checkboxXPath) missing.push("checkbox");
   if (!autoAddConfig.addButtonXPath) missing.push("add button");
-  if (missing.length > 0) {
-    showToast("Missing XPath: " + missing.join(", ") + ". Check Settings");
-    return;
+  if (!autoAddConfig.itemLibraryOptionXPath) missing.push("item library");
+  if (!includeTco && !autoAddConfig.endStepXPath) missing.push("end step");
+  if (includeTco) {
+    if (!autoAddConfig.tcoChangeTemplateXPath) missing.push("change template");
+    if (!autoAddConfig.tcoTemplateOptionXPath) missing.push("template card");
+    if (!autoAddConfig.tcoApplyTemplateXPath) missing.push("apply template");
+    if (!autoAddConfig.tcoOpenBatchXPath) missing.push("open batch");
+    if (!autoAddConfig.tcoSelectAllXPath) missing.push("select all");
+    if (!autoAddConfig.tcoEditSignXPath) missing.push("edit sign");
+    if (!autoAddConfig.tcoPriceFieldXPath) missing.push("price field");
+    if (!autoAddConfig.tcoSaveButtonXPath) missing.push("save button");
+    if (!autoAddConfig.tcoBackToBatchXPath) missing.push("back to batch");
   }
+  return missing;
+}
 
+async function launchAutomation(message, batches) {
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
   const tab = tabs[0];
   if (!tab || tab.id === undefined) {
     showToast("No active tab found");
-    return;
+    return false;
   }
 
   runningBatches = batches;
@@ -1473,17 +1538,89 @@ async function startBatchAdd() {
   }
 
   try {
-    await chrome.tabs.sendMessage(tab.id, {
-      type: "AUTO_ADD_BATCH_START",
-      batches: batches.map(b => ({ name: b.name, barcodes: b.barcodes })),
-      config: autoAddConfig
-    });
+    await chrome.tabs.sendMessage(tab.id, message);
+    return true;
   } catch (err) {
     setAutoAddRunning(false);
     hideRunToast();
+    runningBatches = [];
     updateAutoAddStatus("No content script on this page");
     showToast("Open the target site tab first");
+    return false;
   }
+}
+
+async function startBatchAdd() {
+  const batches = resolveRunBatches();
+
+  if (batches.length === 0) {
+    showToast("No barcodes in the selected list(s)");
+    return;
+  }
+
+  const missing = getMissingXpaths(false);
+  if (missing.length > 0) {
+    showToast("Missing XPath: " + missing.join(", ") + ". Check Settings");
+    return;
+  }
+
+  await launchAutomation({
+    type: "AUTO_ADD_BATCH_START",
+    batches: batches.map(b => ({ name: b.name, barcodes: b.barcodes })),
+    config: autoAddConfig
+  }, batches);
+}
+
+const TCO_COMMENT_RE = /^tco\s*price:\s*/i;
+
+function getTcoPrice(barcode) {
+  const comment = state.comments ? state.comments[barcode] : null;
+  if (!comment) return null;
+  const trimmed = String(comment).trim();
+  if (!TCO_COMMENT_RE.test(trimmed)) return null;
+  const price = trimmed.replace(TCO_COMMENT_RE, "").trim();
+  return price || null;
+}
+
+function isTcoList(name) {
+  const barcodes = state.categories[name] || [];
+  return barcodes.some(b => getTcoPrice(b));
+}
+
+function updateAutomationButtons() {
+  const lists = selectedBatches.length > 0 ? selectedBatches : (state.active ? [state.active] : []);
+  const isTco = lists.some(isTcoList);
+  document.getElementById("batchAddBtn").style.display = isTco ? "none" : "";
+  document.getElementById("tcoBatchAddBtn").style.display = isTco ? "" : "none";
+}
+
+async function startTcoBatchAdd() {
+  const batches = resolveRunBatches();
+
+  if (batches.length === 0) {
+    showToast("No barcodes in the selected list(s)");
+    return;
+  }
+
+  batches.forEach(b => {
+    b.prices = {};
+    b.barcodes.forEach(code => {
+      const price = getTcoPrice(code);
+      if (price) b.prices[code] = price;
+    });
+  });
+
+  const missing = getMissingXpaths(true);
+  if (missing.length > 0) {
+    showToast("Missing XPath: " + missing.join(", ") + ". Check Settings");
+    return;
+  }
+
+  await launchAutomation({
+    type: "AUTO_TCO_BATCH_START",
+    batches: batches.map(b => ({ name: b.name, barcodes: b.barcodes, prices: b.prices })),
+    config: autoAddConfig
+  }, batches);
 }
 
 async function stopAutoAdd() {
@@ -1505,6 +1642,19 @@ function setAutoAddRunning(running) {
   batchBtn.classList.toggle("running", running);
   batchBtn.title = running ? "Stop batch add" : "Create batch and auto-add";
   batchBtn.innerHTML = running ? stopIcon : sparklesIcon;
+
+  setTcoRunning(running);
+}
+
+function setTcoRunning(running) {
+  const stopIcon = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>';
+  const broomIcon = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 2v2"/><path d="M12 3h-2"/><path d="M13.5 10.5 22 2"/><path d="M14.734 13.841a2 2 0 0 0-.314-2.42L12.58 9.58a2 2 0 0 0-2.421-.314l-7.657 4.461A1 1 0 0 0 2.3 15.3l6.403 6.403a1 1 0 0 0 1.571-.204z"/><path d="M20 15v4"/><path d="M22 17h-4"/><path d="M4 4v4"/><path d="m5 18 2-2"/><path d="M6 6H2"/><path d="m7.699 10.7 5.602 5.601"/></svg>';
+
+  const tcoBtn = document.getElementById("tcoBatchAddBtn");
+
+  tcoBtn.classList.toggle("running", running);
+  tcoBtn.title = running ? "Stop TCO automation" : "Create batch, add signs and set TCO prices";
+  tcoBtn.innerHTML = running ? stopIcon : broomIcon;
 }
 
 function updateAutoAddStatus(text) {
