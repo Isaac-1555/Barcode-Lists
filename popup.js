@@ -249,6 +249,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === "SEARCH_BARCODE_ERROR") {
     showToast(msg.message);
   }
+  if (msg.type === "SCRAPE_UPC_RESULT") {
+    addScrapedUpcs(msg.upcs || []);
+  }
 });
 
 async function loadState() {
@@ -1020,6 +1023,7 @@ function setupEventListeners() {
   document.getElementById("fileInput").onchange = handleFileUpload;
 
   document.getElementById("settingsBtn").onclick = showSettingsModal;
+  document.getElementById("scrapeUpcBtn").onclick = scrapeUpcRowsFromSite;
 
   document.getElementById("trashBinBtn").onclick = showTrashModal;
   document.getElementById("closeTrashModal").onclick = closeTrashModal;
@@ -1537,6 +1541,67 @@ async function saveSettings() {
   chrome.storage.local.set({ [runToastStorageKey]: !showRunToast });
 
   closeSettingsModal();
+}
+
+async function scrapeUpcRowsFromSite() {
+  if (!state.active) {
+    showToast("Open a list first");
+    return;
+  }
+
+  const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+  const tab = tabs[0];
+  if (!tab || tab.id === undefined) {
+    showToast("No active tab found");
+    return;
+  }
+
+  try {
+    await chrome.tabs.sendMessage(tab.id, { type: "SCRAPE_UPC_ROWS" });
+  } catch (err) {
+    showToast("Open the target site tab first");
+  }
+}
+
+function addScrapedUpcs(values) {
+  const list = state.categories[state.active];
+  if (!list) {
+    showToast("Open a list first");
+    return;
+  }
+
+  const toAdd = [];
+  let dupes = 0;
+
+  values.forEach(v => {
+    const code = String(v).replace(/\s+/g, "");
+    if (!/^\d+$/.test(code)) return;
+    if (list.includes(code) || toAdd.includes(code)) {
+      dupes++;
+      return;
+    }
+    toAdd.push(code);
+  });
+
+  if (toAdd.length === 0) {
+    showToast(values.length > 0 ? `No new UPCs (${dupes} duplicate)` : "No UPCs on this page");
+    return;
+  }
+
+  toAdd.forEach(code => {
+    list.push(code);
+    delete state.insertedBarcodes[code];
+  });
+  saveAndSync();
+  if (isOnlineMode && session) {
+    toAdd.forEach(code => {
+      addBarcodeRemote(session, state.active, code).catch(console.error);
+      unmarkBarcodeCopied(session, code).catch(console.error);
+    });
+  }
+  render();
+
+  showToast(`Added ${toAdd.length} UPC(s)` + (dupes > 0 ? `, ${dupes} duplicate` : ""));
 }
 
 async function searchBarcodeInSite(code) {

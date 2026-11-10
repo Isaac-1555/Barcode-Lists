@@ -37,6 +37,12 @@ A Chrome Extension (Manifest V3) for retail and store employees to store, organi
 - Click the comment icon to add or edit a comment
 - Comments sync to the cloud with barcode data
 
+### UPC Scrape (Green Note Button)
+- Click the green note button next to the upload icon to copy UPCs off the active tab's page
+- Reads `SignView-row-0-upc`, `SignView-row-1-upc`, ... incrementing until a row is missing or blank, then stops
+- Numbers only; full value kept (no check-digit strip); duplicates and values already in the list are skipped
+- Scrapes the visible page only — go to page 2/3 and click again if the site paginates
+
 ### Excel Import
 - Upload `.xlsx`/`.xls` files; the extension finds the column headed "UPC", strips all spaces and non-numeric characters, and extracts the barcode numbers
 - **Review Modal** -- after extraction, a review modal displays all found barcodes with checkboxes, duplicate detection ("Already in list" / "Exists" badges), select/deselect all, and a toggle to remove the check digit (last digit)
@@ -198,13 +204,24 @@ There is no build step. The extension loads directly from source.
 4. Select the barcodes you want (optionally removing the check digit) and click **Add Selected**
 
 ### Settings
-- Open the settings modal (gear icon) to configure **Auto-Add XPaths** for automating entry into an external site
+- Open the settings modal (gear icon in the sidebar header) to configure **Auto-Add XPaths** for automating entry into an external site
 
 ### Auto-Adding Barcodes
 1. Open the external site in a browser tab (the side panel must be on the same window)
 2. In Settings, verify the four XPath selectors: search box, search button, result checkbox, add button
 3. Click the **play button** in the list header to start; it toggles to **stop** while running
 4. For each barcode the extension types it, searches, checks the result, and clicks add before moving to the next
+
+## Changelog
+
+### 7.12
+- New green note button scrapes consecutive UPC values from the active tab (`SignView-row-N-upc`) into the open list, stopping at the first missing or blank row
+- Scraped UPCs are digits-only, deduped against the list, and keep the full value (no check-digit strip)
+- Settings gear moved to the sidebar header to make room for the scrape button
+- Sidebar action icons resized to 24px so the extra header button fits without clipping
+
+### 7.11
+- Previous release
 
 ## Privacy
 

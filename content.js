@@ -14,6 +14,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === "AUTO_ADD_STOP") {
     stopAutoAdd();
   }
+  if (msg.type === "SCRAPE_UPC_ROWS") {
+    scrapeUpcRows(msg.maxRows);
+  }
 });
 
 let autoAddState = null;
@@ -97,6 +100,30 @@ function sendToExtension(msg) {
   } catch (err) {
     // extension context may be gone
   }
+}
+
+const UPC_ROW_MAX = 500;
+
+function scrapeUpcRows(maxRows) {
+  const limit = Math.min(Number(maxRows) || UPC_ROW_MAX, UPC_ROW_MAX);
+  const upcs = [];
+  let rows = 0;
+
+  for (let i = 0; i < limit; i++) {
+    const el = getByXPath(`//*[@id="SignView-row-${i}-upc"]`);
+    if (!el) break;
+    let raw = typeof el.value === "string" ? el.value : el.textContent;
+    if (!raw || !raw.trim()) {
+      const inner = el.querySelector && el.querySelector("input, textarea, select");
+      if (inner) raw = inner.value;
+    }
+    const digits = (raw || "").replace(/\D/g, "");
+    if (!digits) break;
+    upcs.push(digits);
+    rows = i + 1;
+  }
+
+  sendToExtension({ type: "SCRAPE_UPC_RESULT", upcs, rows });
 }
 
 function startAutoAddBatch(batches, config) {

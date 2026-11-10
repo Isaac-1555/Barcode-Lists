@@ -49,8 +49,8 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   border-radius: 6px;
   background: #27272a;
   color: #a1a1aa;
@@ -353,6 +353,20 @@ body {
 }
 
 .icon-btn-sm svg {
+  stroke: currentColor;
+}
+
+#scrapeUpcBtn {
+  background: #15803d;
+  color: #dcfce7;
+}
+
+#scrapeUpcBtn:hover {
+  background: #22c55e;
+  color: #ffffff;
+}
+
+#scrapeUpcBtn svg {
   stroke: currentColor;
 }
 

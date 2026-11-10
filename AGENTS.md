@@ -49,6 +49,8 @@ No build, no bundler, no package manager.
 
 **Importing Excel files**: `processExcelFile()` in popup.js finds the column headed "UPC" (searching the first 10 rows of each sheet), strips all non-numeric characters from each cell below it, and dedupes. Extracted barcodes are grouped under a category named after the file (extension stripped). The review modal's "Remove last digit (check digit)" toggle strips the final digit on add.
 
+**Scraping UPCs from the active tab**: The green note button (`#scrapeUpcBtn`) sends `SCRAPE_UPC_ROWS` to `content.js`. `scrapeUpcRows()` walks `//*[@id="SignView-row-{i}-upc"]` from `i = 0`, stopping at the first missing element or empty value (hard cap `UPC_ROW_MAX = 500`). It replies with `SCRAPE_UPC_RESULT`, and `addScrapedUpcs()` in popup.js merges digits-only UPCs into the active list with dedupe, then `saveAndSync()` + per-code `addBarcodeRemote()`. Current page only — no pagination.
+
 ## Important Patterns
 
 - All barcodes stored as string numeric values (e.g., `"012345678901"`)
