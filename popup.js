@@ -52,6 +52,8 @@ let selectedForExtraction = [];
 let trash = [];
 let selectedBatches = [];
 let runningBatches = [];
+let undoStack = [];
+const UNDO_STACK_LIMIT = 50;
 
 document.addEventListener("DOMContentLoaded", async () => {
   chrome.action.setBadgeText({ text: "" }).catch(() => {});
@@ -654,15 +656,53 @@ function addBarcode(value) {
 }
 
 function removeBarcode(value) {
-  const list = state.categories[state.active];
-  state.categories[state.active] = list.filter(v => v !== value);
+  const category = state.active;
+  const list = state.categories[category];
+  if (!list) return;
+  const index = list.indexOf(value);
+  if (index === -1) return;
+
+  state.categories[category] = list.filter(v => v !== value);
   delete state.insertedBarcodes[value];
+
+  undoStack.push({ category, value, index });
+  if (undoStack.length > UNDO_STACK_LIMIT) {
+    undoStack.shift();
+  }
+
   saveAndSync();
   if (isOnlineMode && session) {
-    removeBarcodeRemote(session, state.active, value).catch(console.error);
+    removeBarcodeRemote(session, category, value).catch(console.error);
     unmarkBarcodeCopied(session, value).catch(console.error);
   }
   render();
+}
+
+function undoLastDelete() {
+  const entry = undoStack.pop();
+  if (!entry) return false;
+
+  const list = state.categories[entry.category];
+  if (!list) return false;
+  if (list.includes(entry.value)) return false;
+
+  const index = Math.min(entry.index, list.length);
+  list.splice(index, 0, entry.value);
+  delete state.insertedBarcodes[entry.value];
+
+  saveAndSync();
+  if (isOnlineMode && session) {
+    addBarcodeRemote(session, entry.category, entry.value).catch(console.error);
+    unmarkBarcodeCopied(session, entry.value).catch(console.error);
+  }
+  render();
+
+  showToast(
+    entry.category === state.active
+      ? "Delete undone"
+      : `Delete undone in ${entry.category}`
+  );
+  return true;
 }
 
 function markInserted(code) {
@@ -1059,6 +1099,21 @@ function setupEventListeners() {
   document.getElementById("runToastClose").onclick = () => suppressRunToast(false);
   document.getElementById("runToastDismiss").onclick = () => suppressRunToast(false);
   document.getElementById("runToastNever").onclick = () => suppressRunToast(true);
+
+  document.addEventListener("keydown", (e) => {
+    if (!(e.ctrlKey || e.metaKey) || e.shiftKey) return;
+    if (e.key.toLowerCase() !== "z") return;
+
+    const target = e.target;
+    if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
+      return;
+    }
+    if (document.getElementById("mainApp").style.display === "none") return;
+
+    if (undoLastDelete()) {
+      e.preventDefault();
+    }
+  });
 }
 
 function showToast(msg) {

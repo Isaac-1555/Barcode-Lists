@@ -43,6 +43,8 @@ No build, no bundler, no package manager.
 
 **Adding a barcode**: Call `addBarcode(value)` — validates numeric only, rejects duplicates with toast notification.
 
+**Deleting a barcode**: Call `removeBarcode(value)` — pushes `{ category, value, index }` onto the in-memory `undoStack` (max 50). Ctrl+Z / ⌘+Z calls `undoLastDelete()`, which re-inserts at the original index and re-adds remotely. Undo stack is not persisted; comments survive deletes, so undo restores them automatically.
+
 **Adding a category**: Call `createCategory(name)` — auto-sets as active category.
 
 **Syncing changes**: Call `saveAndSync()` after any state mutation — saves locally first, then pushes to Supabase if online.

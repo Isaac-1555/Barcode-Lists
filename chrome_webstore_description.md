@@ -17,6 +17,7 @@ The extension runs in Chrome's side panel, so your lists stay one click away wit
 **Fast barcode capture**
 - Type or paste a barcode with automatic numeric validation and duplicate detection
 - Copy any barcode to the clipboard with a single click
+- Delete the wrong barcode? Ctrl+Z (⌘+Z on macOS) puts it right back where it was, comment and all
 - Scrape UPCs straight off a page — the green note button reads consecutive UPC rows and drops them into your open list, stopping automatically at the last row
 - Add a short note (up to 250 characters) to any barcode to remember what it is — "on sale," "out of stock," "price check"
 

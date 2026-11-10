@@ -194,7 +194,7 @@ There is no build step. The extension loads directly from source.
 - Type a barcode number in the input field and press **Enter** or click **Add**
 - Only numeric values are accepted; duplicates are rejected with a notification
 - Click the copy icon next to a barcode to copy it to the clipboard
-- Click the delete icon to remove a barcode
+- Click the delete icon to remove a barcode (Ctrl+Z on Windows/Linux, ⌘+Z on macOS, undoes the last delete)
 - Click the comment icon to add or edit a note on any barcode
 
 ### Importing from Excel
@@ -213,6 +213,11 @@ There is no build step. The extension loads directly from source.
 4. For each barcode the extension types it, searches, checks the result, and clicks add before moving to the next
 
 ## Changelog
+
+### 7.13
+- Sidebar action buttons (sync, settings, trash, logout, add list) now sit in a row below the store name instead of beside it
+- Settings icon is now a gear
+- Ctrl+Z / ⌘+Z undoes the last barcode delete, restoring it to its original position and comment (up to 50 steps, in-memory per session)
 
 ### 7.12
 - New green note button scrapes consecutive UPC values from the active tab (`SignView-row-N-upc`) into the open list, stopping at the first missing or blank row
