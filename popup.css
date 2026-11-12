@@ -1042,6 +1042,86 @@ body {
   padding: 20px;
 }
 
+.skipped-hint {
+  margin: 0;
+  padding: 12px 16px 0;
+  font-size: 12px;
+  color: #a1a1aa;
+  line-height: 1.4;
+}
+
+.skipped-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  background: #18181b;
+  border: 1px solid #2a2a2e;
+  border-radius: 8px;
+  gap: 10px;
+}
+
+.skipped-item.done {
+  opacity: 0.55;
+}
+
+.skipped-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.skipped-code {
+  font-size: 13px;
+  font-weight: 600;
+  color: #e4e4e7;
+  font-family: monospace;
+}
+
+.skipped-info {
+  font-size: 11px;
+  color: #71717a;
+}
+
+.skipped-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.skipped-actions button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid #2a2a2e;
+  background: #27272a;
+  color: #e4e4e7;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.skipped-actions button:hover:not(:disabled) {
+  background: #3f3f46;
+}
+
+.skipped-actions button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.skipped-search-btn:hover:not(:disabled) {
+  color: #22c55e;
+}
+
+.skipped-dismiss-btn:hover:not(:disabled) {
+  color: #f87171;
+}
+
 .loading-overlay {
   position: fixed;
   top: 0;

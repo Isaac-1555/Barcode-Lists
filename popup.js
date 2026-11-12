@@ -52,8 +52,12 @@ let selectedForExtraction = [];
 let trash = [];
 let selectedBatches = [];
 let runningBatches = [];
+let skippedShortCodes = [];
 let undoStack = [];
 const UNDO_STACK_LIMIT = 50;
+
+// UPCs with this many digits or fewer are not sent to the website batch
+const SHORT_UPC_MAX_DIGITS = 5;
 
 document.addEventListener("DOMContentLoaded", async () => {
   chrome.action.setBadgeText({ text: "" }).catch(() => {});
@@ -210,6 +214,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       renderCategories();
       renderBatchCount();
     }
+    showSkippedCodesIfAny();
   }
   if (msg.type === "AUTO_TCO_EDIT_PROGRESS") {
     const listCtx = msg.batchCount > 1 ? `List ${msg.batchIndex}/${msg.batchCount} · ` : "";
@@ -232,6 +237,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       renderCategories();
       renderBatchCount();
     }
+    showSkippedCodesIfAny();
   }
   if (msg.type === "AUTO_STATUS") {
     updateAutoAddStatus(msg.message);
@@ -243,10 +249,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === "AUTO_ADD_STOPPED") {
     finishAutoAdd("Stopped by user");
     showToast("Auto-add stopped");
+    showSkippedCodesIfAny();
   }
   if (msg.type === "SEARCH_BARCODE_DONE") {
     markInserted(msg.barcode);
     showToast("Searched: " + msg.barcode);
+    if (document.getElementById("skippedModal").style.display === "flex") {
+      renderSkippedCodes();
+    }
   }
   if (msg.type === "SEARCH_BARCODE_ERROR") {
     showToast(msg.message);
@@ -1075,6 +1085,9 @@ function setupEventListeners() {
   document.getElementById("closeTrashModalBtn").onclick = closeTrashModal;
   document.getElementById("emptyTrashBtn").onclick = emptyTrash;
 
+  document.getElementById("closeSkippedModal").onclick = closeSkippedCodesModal;
+  document.getElementById("closeSkippedModalBtn").onclick = closeSkippedCodesModal;
+
   document.getElementById("batchAddBtn").onclick = () => {
     if (autoAddRunning) {
       stopAutoAdd();
@@ -1697,6 +1710,124 @@ function resolveRunBatches() {
   return barcodes.length > 0 ? [{ name: state.active, barcodes }] : [];
 }
 
+function countDigits(code) {
+  return String(code).replace(/\D/g, "").length;
+}
+
+function isShortUpc(code) {
+  return countDigits(code) <= SHORT_UPC_MAX_DIGITS;
+}
+
+// Splits UPCs with SHORT_UPC_MAX_DIGITS digits or fewer out of the batches.
+// Skipped codes stay in the extension list and are reported in the skipped modal.
+function prepareRunBatches() {
+  const batches = resolveRunBatches();
+  const kept = [];
+  const skipped = [];
+
+  batches.forEach(b => {
+    const keep = [];
+    b.barcodes.forEach(code => {
+      if (isShortUpc(code)) {
+        skipped.push({ code: String(code), list: b.name });
+      } else {
+        keep.push(code);
+      }
+    });
+    if (keep.length > 0) {
+      kept.push({ ...b, barcodes: keep });
+    }
+  });
+
+  skippedShortCodes = skipped;
+  closeSkippedCodesModal();
+  return kept;
+}
+
+function showSkippedCodesModal() {
+  renderSkippedCodes();
+  document.getElementById("skippedModal").style.display = "flex";
+}
+
+function closeSkippedCodesModal() {
+  document.getElementById("skippedModal").style.display = "none";
+}
+
+function showSkippedCodesIfAny() {
+  if (skippedShortCodes.length === 0) {
+    closeSkippedCodesModal();
+    return;
+  }
+  showSkippedCodesModal();
+}
+
+function renderSkippedCodes() {
+  const content = document.getElementById("skippedContent");
+  content.innerHTML = "";
+
+  if (skippedShortCodes.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "empty-state";
+    empty.textContent = "No UPCs were skipped";
+    content.appendChild(empty);
+    return;
+  }
+
+  const showList = new Set(skippedShortCodes.map(s => s.list)).size > 1;
+
+  skippedShortCodes.forEach((entry) => {
+    const done = !!state.insertedBarcodes[entry.code];
+
+    const item = document.createElement("div");
+    item.className = "skipped-item";
+    if (done) item.classList.add("done");
+
+    const meta = document.createElement("div");
+    meta.className = "skipped-meta";
+
+    const codeSpan = document.createElement("span");
+    codeSpan.className = "skipped-code";
+    codeSpan.textContent = entry.code;
+
+    const info = document.createElement("span");
+    info.className = "skipped-info";
+    info.textContent = showList
+      ? `${entry.list} • ${countDigits(entry.code)} digits`
+      : `${countDigits(entry.code)} digits`;
+
+    meta.appendChild(codeSpan);
+    meta.appendChild(info);
+    item.appendChild(meta);
+
+    const actions = document.createElement("div");
+    actions.className = "skipped-actions";
+
+    const searchBtn = document.createElement("button");
+    searchBtn.className = "skipped-search-btn";
+    searchBtn.title = done ? "Already searched" : "Search this UPC on the site";
+    searchBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>`;
+    searchBtn.disabled = done;
+    searchBtn.onclick = () => {
+      searchBarcodeInSite(entry.code);
+    };
+
+    const dismissBtn = document.createElement("button");
+    dismissBtn.className = "skipped-dismiss-btn";
+    dismissBtn.title = "Dismiss";
+    dismissBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>`;
+    dismissBtn.onclick = () => {
+      skippedShortCodes = skippedShortCodes.filter(s => s !== entry);
+      renderSkippedCodes();
+    };
+
+    actions.appendChild(searchBtn);
+    actions.appendChild(dismissBtn);
+    item.appendChild(actions);
+
+    content.appendChild(item);
+  });
+}
+
 function getMissingXpaths(includeTco) {
   const missing = [];
   if (!autoAddConfig.batchCreateButtonXPath) missing.push("create batch");
@@ -1752,10 +1883,15 @@ async function launchAutomation(message, batches) {
 }
 
 async function startBatchAdd() {
-  const batches = resolveRunBatches();
+  const batches = prepareRunBatches();
 
   if (batches.length === 0) {
-    showToast("No barcodes in the selected list(s)");
+    if (skippedShortCodes.length > 0) {
+      showSkippedCodesModal();
+      showToast(`All ${skippedShortCodes.length} UPC(s) had ${SHORT_UPC_MAX_DIGITS} digits or fewer`);
+    } else {
+      showToast("No barcodes in the selected list(s)");
+    }
     return;
   }
 
@@ -1796,10 +1932,15 @@ function updateAutomationButtons() {
 }
 
 async function startTcoBatchAdd() {
-  const batches = resolveRunBatches();
+  const batches = prepareRunBatches();
 
   if (batches.length === 0) {
-    showToast("No barcodes in the selected list(s)");
+    if (skippedShortCodes.length > 0) {
+      showSkippedCodesModal();
+      showToast(`All ${skippedShortCodes.length} UPC(s) had ${SHORT_UPC_MAX_DIGITS} digits or fewer`);
+    } else {
+      showToast("No barcodes in the selected list(s)");
+    }
     return;
   }
 

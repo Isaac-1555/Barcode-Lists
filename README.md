@@ -18,6 +18,8 @@ A Chrome Extension (Manifest V3) for retail and store employees to store, organi
 - Adjustable delay between barcodes and result-wait timeout
 - Live progress readout (`3/50: 012345678901`) and a stop button that halts mid-loop
 - Stops and reports the barcode if any element can't be found
+- UPCs with 5 digits or fewer are never sent to the site: they are skipped and listed in a "Skipped UPCs" dialog when the run ends
+- Every skipped UPC gets a search button so it can be looked up and added by hand
 
 ### TCO Automation (Yellow Button)
 - When the active list (or selected lists) contain barcodes with "TCO Price" comments, the blue sparkles button is replaced by a yellow broom-sparkles button
@@ -212,8 +214,14 @@ There is no build step. The extension loads directly from source.
 2. In Settings, verify the four XPath selectors: search box, search button, result checkbox, add button
 3. Click the **play button** in the list header to start; it toggles to **stop** while running
 4. For each barcode the extension types it, searches, checks the result, and clicks add before moving to the next
+5. UPCs with 5 digits or fewer are skipped (never searched on the site) and listed in a closable **Skipped UPCs** dialog when the run ends, with a search button per UPC so it can be added by hand
 
 ## Changelog
+
+### 7.15
+- UPCs with 5 digits or fewer are skipped instead of being searched and added on the site
+- Skipped UPCs are reported in a closable "Skipped UPCs" dialog when the run ends, with a search button per UPC so it can be added manually
+- Applies to both the blue auto-add batch and the yellow TCO batch; skipped codes stay in the extension list
 
 ### 7.14
 - Scrape button now follows pagination: clicks `SignView-page-link-right` until the link is disabled, recording every page

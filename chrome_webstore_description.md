@@ -1,67 +1,73 @@
 # Chrome Web Store Listing — Barcode Lists
 
-## Short Description
+## Short Description (132 char max)
 
-Barcode Lists is a side-panel tool for Calgary Co-op FMC departments to save, organize, and auto-enter barcodes with Excel import and cloud sync.
+Save barcodes once. Import from Excel, organize by list, and let Barcode Lists type them into your ordering site for you.
 
 ## Detailed Description
 
-### Save barcodes once. Use them anywhere.
+### One panel. Every barcode you order.
 
-Barcode Lists is built for Calgary Co-op Food Merchandising (FMC) department staff who handle barcodes every shift. Store a barcode once, organize it by category, and let the extension re-enter it into your ordering system whenever you need it — no more digging through spreadsheets or retyping 12-digit numbers.
+Barcode Lists lives in Chrome's side panel and keeps the UPCs you order every week organized, searchable, and one click away from your ordering site. It replaces the spreadsheet-and-sticky-note routine with a single dark panel that stays open while you work.
 
-The extension runs in Chrome's side panel, so your lists stay one click away without leaving the page you're working on.
+Built for Calgary Co-op FMC department staff — but useful anywhere barcodes have to be re-entered by hand.
 
-### Features
+### Why you'll keep it open
 
-**Fast barcode capture**
-- Type or paste a barcode with automatic numeric validation and duplicate detection
-- Copy any barcode to the clipboard with a single click
-- Delete the wrong barcode? Ctrl+Z (⌘+Z on macOS) puts it right back where it was, comment and all
-- Scrape UPCs straight off a page — the green note button reads consecutive UPC rows and drops them into your open list, stopping automatically at the last row
-- Add a short note (up to 250 characters) to any barcode to remember what it is — "on sale," "out of stock," "price check"
+- **Type or paste a barcode** and it's saved instantly — numeric validation and duplicate detection are automatic
+- **Organize by list** (Dairy, Produce, Frozen, Managers' Specials…) and drag to reorder them
+- **Add notes up to 250 characters** to any barcode — "on sale 2/$5", "check date code", "TCO price 4.99"
+- **Priority lists glow red** when management shares an important list, so nothing gets missed
+- **Delete by mistake?** Press Ctrl+Z (⌘+Z on macOS) and the barcode returns to its exact spot, comment and all
+- **Copy any barcode** with one click, or search it on your site with another
+- **Full trash bin** for deleted lists, with restore and permanent delete
 
-**Organize like a pro**
-- Create, rename, and delete categories (Dairy, Produce, Frozen, General Merchandise…)
-- Drag and drop categories to match your department's layout
-- Important categories (shared from management) glow red so you never miss a priority list
+### Import a whole spreadsheet in one go
 
-**Import from Excel**
-- Upload .xlsx or .xls files — the "UPC" column is detected automatically
-- Spaces and formatting are stripped so only the clean barcode number is added
-- Review modal shows exactly what was found, flags duplicates, and lets you select or remove check digits before importing
+- Drop in an `.xlsx` or `.xls` file — the **UPC column is found automatically**, even when it isn't the first sheet
+- **Review before you commit**: every extracted code is listed with duplicate flags, and the optional check-digit strip removes the last digit
+- **TCO prices** found in the sheet are saved as barcode comments, ready for the pricing workflow
 
-**One-click automation**
-- Enter every barcode in your active list into an external site automatically — one by one
-- The extension types the barcode, searches, checks the result, and clicks add for you
-- Adjustable delay between steps so the page fully loads each time
-- Live progress readout and a stop button if you need to halt mid-run
-- Create a batch and auto-fill it directly from your list
+### Stop retyping twelve-digit numbers
 
-**Cloud sync & offline access**
-- Bidirectional cloud sync via Supabase (PostgreSQL) — back up your lists and access them from any device
-- Works fully offline using local Chrome storage
-- Sync status indicator shows when you're connected, offline, or syncing
+- **Batch entry** creates a batch named after your list, opens Add Signs → Item Library, then types each barcode, searches it, ticks the result, and adds it — one at a time, with live progress
+- **Template + TCO workflow** applies your sign template to the finished batch and sets each sign's price from the barcode's comment
+- **Scrape UPCs** straight off the page you're on — consecutive UPC rows are pulled into the open list and stop automatically at the last row
+- **Short codes are held back** — UPCs with 5 digits or fewer are never searched on the site; they come back in a "Skipped UPCs" dialog, each with a one-click search so you can add it by hand
+- **Adjustable delay** so slower pages always finish loading, plus a stop button if you need to halt mid-run
 
-**Built for your store**
-- Each store (e.g., FMC07) gets its own secure account — no personal data, no email required
-- New stores are created automatically on first login
-- Passwords are hashed before storage
+### Works offline, syncs when you're back
 
-### How to use
+- **Local-first storage** — everything works with no connection
+- **Cloud sync** through Supabase keeps your lists available on your other devices
+- **Sync indicator**: green connected, yellow syncing, red offline
+- **Per-store accounts** (e.g., FMC07) — no email, no personal profile, passwords hashed before storage
 
-1. Click the Barcode Lists icon in the Chrome toolbar to open the side panel.
-2. Enter your store number (e.g., FMC07) and a password. Your store account is created automatically the first time.
-3. Add barcodes by typing them in and pressing Enter, or import them from an Excel file.
-4. Group barcodes into categories like Dairy or Produce.
-5. Click the play button to auto-enter a list into your ordering site, or use Settings to configure the XPath selectors for your site.
-6. Your data syncs to the cloud automatically when you're online, and works offline too.
+### Private by design
 
-### Permissions & privacy
+Barcode data is used only for list management. No analytics, no tracking, no ads, and no personal data collected. See the privacy policy for details.
+
+### Getting started
+
+1. Click the Barcode Lists icon in the toolbar to open the side panel.
+2. Enter your store number and password — new stores are created automatically.
+3. Type barcodes in and press Enter, or import them from Excel.
+4. Group them into lists and add notes.
+5. Use Settings to match the XPath selectors to your ordering site, then run batch entry whenever you need it.
+
+### Support
+
+Questions, bugs, or feature requests: https://github.com/Isaac-1555/Barcode-Lists
+
+---
+
+## Permissions & privacy
 
 - **Storage** — saves your barcode lists, categories, and session locally so everything works offline.
 - **Side panel** — shows the app in Chrome's side panel for quick access.
+- **Tabs / scripting of the active tab** — reads UPC rows and enters barcodes into the ordering site you already have open.
 - **Supabase host access** — syncs your lists to your store's private cloud database.
+- **Notifications / alarms** — keeps batch runs alive and reports progress.
 
 Barcode data is used only for list management. No analytics, no tracking, no ads. No personal user data is collected.
 
@@ -76,6 +82,26 @@ Barcode data is used only for list management. No analytics, no tracking, no ads
 | **Language** | English (en-US) |
 | **Support URL** | https://github.com/Isaac-1555/Barcode-Lists |
 | **Privacy Policy URL** | https://github.com/Isaac-1555/Barcode-Lists/blob/main/privacy_policy.md |
+
+## Store Assets
+
+Files live in [`store-assets/`](store-assets/):
+
+| File | Size | Used for |
+|---|---|---|
+| `screenshot-1-lists.png` | 1280×800 | Screenshot 1 — lists, notes, priority glow |
+| `screenshot-2-excel-import.png` | 1280×800 | Screenshot 2 — Excel review modal |
+| `screenshot-3-automation.png` | 1280×800 | Screenshot 3 — batch entry progress |
+| `promo-tile-440x280.png` | 440×280 | Small promo tile |
+| `marquee-1400x560.png` | 1400×560 | Marquee (optional) |
+
+Icon: `icon128.png` (128×128) ships inside the extension package.
+
+### Screenshot captions
+
+1. **Every list, one panel.** Notes on each barcode, duplicates blocked, priority lists glowing red.
+2. **Import from Excel.** The UPC column is found for you, duplicates are flagged, nothing is added until you say so.
+3. **One-click batch entry.** Pick lists, hit the batch button, and watch it enter every barcode for you.
 
 ## Tech Stack (reference for listing content)
 
@@ -94,5 +120,6 @@ Barcode data is used only for list management. No analytics, no tracking, no ads
 - [ ] No unattributed testimonials, no keyword stuffing (repeat "barcode" sparingly)
 - [ ] Title under 45 characters ("Barcode Lists" = 13)
 - [ ] 128x128 icon (icon128.png included in package)
-- [ ] Screenshots at 1280x800 or 640x400 of the side panel, import review modal, settings
+- [x] Screenshots at 1280x800 (3 provided in store-assets/)
+- [x] Small promo tile 440x280 and marquee 1400x560 provided
 - [ ] Support URL and Privacy Policy URL set to the GitHub repo
