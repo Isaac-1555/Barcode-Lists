@@ -102,28 +102,164 @@ function sendToExtension(msg) {
   }
 }
 
-const UPC_ROW_MAX = 500;
+const UPC_ROW_MAX = 2000;
+const UPC_PAGE_MAX = 100;
+const UPC_PAGE_WAIT_MS = 15000;
+const UPC_PAGER_RIGHT_XPATH = '//*[@id="SignView-page-link-right"]';
 
-function scrapeUpcRows(maxRows) {
-  const limit = Math.min(Number(maxRows) || UPC_ROW_MAX, UPC_ROW_MAX);
+let scrapeRunning = false;
+
+function readUpcAt(i) {
+  const el = getByXPath(`//*[@id="SignView-row-${i}-upc"]`);
+  if (!el) return "";
+  let raw = typeof el.value === "string" ? el.value : el.textContent;
+  if (!raw || !raw.trim()) {
+    const inner = el.querySelector && el.querySelector("input, textarea, select");
+    if (inner) raw = inner.value;
+  }
+  return (raw || "").replace(/\D/g, "");
+}
+
+function scrapePageFrom(start, limit) {
   const upcs = [];
-  let rows = 0;
+  let last = start - 1;
 
-  for (let i = 0; i < limit; i++) {
-    const el = getByXPath(`//*[@id="SignView-row-${i}-upc"]`);
-    if (!el) break;
-    let raw = typeof el.value === "string" ? el.value : el.textContent;
-    if (!raw || !raw.trim()) {
-      const inner = el.querySelector && el.querySelector("input, textarea, select");
-      if (inner) raw = inner.value;
-    }
-    const digits = (raw || "").replace(/\D/g, "");
+  for (let i = start; i < limit; i++) {
+    const digits = readUpcAt(i);
     if (!digits) break;
     upcs.push(digits);
-    rows = i + 1;
+    last = i;
   }
 
-  sendToExtension({ type: "SCRAPE_UPC_RESULT", upcs, rows });
+  return { upcs, last };
+}
+
+function classText(el) {
+  if (!el) return "";
+  const cls = el.className;
+  return typeof cls === "string" ? cls : (el.getAttribute && el.getAttribute("class")) || "";
+}
+
+function pagerRightEnabled() {
+  const el = getByXPath(UPC_PAGER_RIGHT_XPATH);
+  if (!el) return false;
+  if (el.disabled || el.hasAttribute("disabled")) return false;
+  if ((el.getAttribute("aria-disabled") || "").toLowerCase() === "true") return false;
+  if (el.getAttribute("aria-hidden") === "true") return false;
+  if (/disabled|inactive|off/.test(classText(el).toLowerCase())) return false;
+  const style = window.getComputedStyle && window.getComputedStyle(el);
+  if (style && style.pointerEvents === "none") return false;
+
+  let node = el.parentElement;
+  for (let depth = 0; node && depth < 4; depth++, node = node.parentElement) {
+    if (/disabled|inactive/.test(classText(node).toLowerCase())) return false;
+  }
+
+  return !!closestEnabled(el);
+}
+
+function waitForRowAt(index, timeoutMs) {
+  return new Promise((resolve) => {
+    const start = Date.now();
+    const tick = () => {
+      if (readUpcAt(index)) return resolve(true);
+      if (Date.now() - start > timeoutMs) return resolve(false);
+      setTimeout(tick, 200);
+    };
+    tick();
+  });
+}
+
+function waitForPageSettled(start, timeoutMs) {
+  return new Promise((resolve) => {
+    const began = Date.now();
+    let prev = null;
+    let stableSince = Date.now();
+    const tick = () => {
+      const { upcs } = scrapePageFrom(start, UPC_ROW_MAX);
+      const sig = upcs.join(",");
+      if (sig !== prev) {
+        prev = sig;
+        stableSince = Date.now();
+      } else if (sig && Date.now() - stableSince >= 600) {
+        return resolve(true);
+      }
+      if (Date.now() - began > timeoutMs) return resolve(!!sig);
+      setTimeout(tick, 150);
+    };
+    tick();
+  });
+}
+
+async function scrapeUpcRows(maxRows) {
+  if (scrapeRunning) {
+    sendToExtension({ type: "SCRAPE_UPC_RESULT", upcs: [], rows: 0, pages: 0, aborted: "Scrape already running" });
+    return;
+  }
+  scrapeRunning = true;
+
+  const limit = Math.min(Number(maxRows) || UPC_ROW_MAX, UPC_ROW_MAX);
+  const all = [];
+  const seen = new Set();
+  let start = 0;
+  let pages = 0;
+  let aborted = "";
+
+  try {
+    for (let p = 0; p < UPC_PAGE_MAX; p++) {
+      const { upcs, last } = scrapePageFrom(start, limit);
+      if (upcs.length === 0) {
+        if (p > 0) aborted = `No rows on page ${p + 1}`;
+        break;
+      }
+
+      pages = p + 1;
+      upcs.forEach((code) => {
+        if (!seen.has(code)) {
+          seen.add(code);
+          all.push(code);
+        }
+      });
+
+      sendToExtension({ type: "SCRAPE_UPC_PROGRESS", page: pages, count: all.length });
+
+      if (all.length >= limit) {
+        aborted = `Reached the ${limit} UPC limit`;
+        break;
+      }
+      if (!pagerRightEnabled()) break;
+
+      const nextStart = last + 1;
+      const btn = closestEnabled(getByXPath(UPC_PAGER_RIGHT_XPATH));
+      if (!btn) break;
+      btn.click();
+
+      const loaded = await waitForRowAt(nextStart, UPC_PAGE_WAIT_MS);
+      if (!loaded) {
+        if (!pagerRightEnabled()) break;
+        aborted = `Page ${pages + 1} did not load`;
+        break;
+      }
+      await waitForPageSettled(nextStart, 5000);
+      start = nextStart;
+    }
+
+    if (!aborted && pages >= UPC_PAGE_MAX) {
+      aborted = `Stopped after ${UPC_PAGE_MAX} pages`;
+    }
+  } catch (err) {
+    aborted = "Scrape failed";
+  } finally {
+    scrapeRunning = false;
+  }
+
+  sendToExtension({
+    type: "SCRAPE_UPC_RESULT",
+    upcs: all,
+    rows: all.length,
+    pages,
+    aborted
+  });
 }
 
 function startAutoAddBatch(batches, config) {

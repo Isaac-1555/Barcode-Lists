@@ -251,8 +251,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === "SEARCH_BARCODE_ERROR") {
     showToast(msg.message);
   }
+  if (msg.type === "SCRAPE_UPC_PROGRESS") {
+    showLoadingOverlay(`Scraping page ${msg.page}… (${msg.count} UPCs)`);
+  }
   if (msg.type === "SCRAPE_UPC_RESULT") {
-    addScrapedUpcs(msg.upcs || []);
+    hideLoadingOverlay();
+    if (msg.pages || !msg.aborted) addScrapedUpcs(msg.upcs || [], msg.pages || 1);
+    if (msg.aborted) setTimeout(() => showToast(msg.aborted), 1600);
   }
 });
 
@@ -1612,13 +1617,15 @@ async function scrapeUpcRowsFromSite() {
   }
 
   try {
+    showLoadingOverlay("Scraping UPCs…");
     await chrome.tabs.sendMessage(tab.id, { type: "SCRAPE_UPC_ROWS" });
   } catch (err) {
+    hideLoadingOverlay();
     showToast("Open the target site tab first");
   }
 }
 
-function addScrapedUpcs(values) {
+function addScrapedUpcs(values, pages) {
   const list = state.categories[state.active];
   if (!list) {
     showToast("Open a list first");
@@ -1638,8 +1645,11 @@ function addScrapedUpcs(values) {
     toAdd.push(code);
   });
 
+  const pageText = pages > 1 ? ` from ${pages} pages` : "";
+
   if (toAdd.length === 0) {
-    showToast(values.length > 0 ? `No new UPCs (${dupes} duplicate)` : "No UPCs on this page");
+    const dupeText = dupes > 0 ? ` (${dupes} duplicate${dupes === 1 ? "" : "s"})` : "";
+    showToast(values.length > 0 ? `No new UPCs${pageText}${dupeText}` : "No UPCs on this page");
     return;
   }
 
@@ -1656,7 +1666,7 @@ function addScrapedUpcs(values) {
   }
   render();
 
-  showToast(`Added ${toAdd.length} UPC(s)` + (dupes > 0 ? `, ${dupes} duplicate` : ""));
+  showToast(`Added ${toAdd.length} UPC(s)${pageText}` + (dupes > 0 ? `, ${dupes} duplicate` : ""));
 }
 
 async function searchBarcodeInSite(code) {

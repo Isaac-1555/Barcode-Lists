@@ -41,7 +41,8 @@ A Chrome Extension (Manifest V3) for retail and store employees to store, organi
 - Click the green note button next to the upload icon to copy UPCs off the active tab's page
 - Reads `SignView-row-0-upc`, `SignView-row-1-upc`, ... incrementing until a row is missing or blank, then stops
 - Numbers only; full value kept (no check-digit strip); duplicates and values already in the list are skipped
-- Scrapes the visible page only — go to page 2/3 and click again if the site paginates
+- Follows pagination automatically: after each page it clicks `SignView-page-link-right` and keeps going until that link is disabled, stopping at 100 pages / 2000 UPCs
+- Page-N rows keep counting up (`SignView-row-20-upc` onward), so progress is detected by waiting for the next expected row index to appear
 
 ### Excel Import
 - Upload `.xlsx`/`.xls` files; the extension finds the column headed "UPC", strips all spaces and non-numeric characters, and extracts the barcode numbers
@@ -213,6 +214,13 @@ There is no build step. The extension loads directly from source.
 4. For each barcode the extension types it, searches, checks the result, and clicks add before moving to the next
 
 ## Changelog
+
+### 7.14
+- Scrape button now follows pagination: clicks `SignView-page-link-right` until the link is disabled, recording every page
+- Waits for the next page's rows by polling the next expected row index (`SignView-row-20-upc`, ...), so pages with identical content still advance correctly
+- Row IDs continue across pages; results are deduped across the whole run
+- Caps raised to 2000 UPCs / 100 pages; progress shows the current page and running count
+- Stale-timeout guard reports "Page N did not load" instead of silently recording a partial list
 
 ### 7.13
 - Sidebar action buttons (sync, settings, trash, logout, add list) now sit in a row below the store name instead of beside it
