@@ -268,7 +268,7 @@
         </div>
         <div class="settings-section settings-subsection">
           <h5 class="settings-group-title">Lists with Ticket Size (per UPC)</h5>
-          <p class="settings-section-subtitle">Replaces the legacy steps 3-9. One UPC at a time: search, select row, change template, pick size card, apply.</p>
+          <p class="settings-section-subtitle">Replaces the legacy steps 3-9. Templates pass: one UPC at a time — search, select row, change template, pick size card, apply. Price pass then repeats: search, edit sign (steps 6-9 in the legacy list), fill the size fields below, save.</p>
           <div class="settings-step">
             <label class="settings-step-label" for="tcoSelectRow"><span class="settings-step-num">3</span>Tick the searched sign row</label>
             <input type="text" id="tcoSelectRow" class="settings-input" placeholder="Select searched sign XPath (item grid checkbox)" />
@@ -280,6 +280,10 @@
           <div class="settings-step">
             <label class="settings-step-label" for="tcoTicketSizeTemplates"><span class="settings-step-num">5</span>Ticket size to card XPath map</label>
             <textarea id="tcoTicketSizeTemplates" rows="8" placeholder="One size=card XPath per line:&#10;9=//*[@id=&quot;container&quot;]/div[23]/ppr-card-component/div/div[1]&#10;r9=//*[@id=&quot;container&quot;]/div[22]/ppr-card-component/div/div[1]" class="settings-input settings-textarea"></textarea>
+          </div>
+          <div class="settings-step">
+            <label class="settings-step-label" for="tcoTicketSizePriceFields"><span class="settings-step-num">6</span>Ticket size to sale price field XPath map (second path gets $/kg ÷ 2.20462)</label>
+            <textarea id="tcoTicketSizePriceFields" rows="8" placeholder="One size=regular XPath | per-pound XPath per line:&#10;1=//*[@id=&quot;7079&quot;]&#10;r9=//*[@id=&quot;7098&quot;] | //*[@id=&quot;7099&quot;]" class="settings-input settings-textarea"></textarea>
           </div>
         </div>
         <hr class="settings-divider" />

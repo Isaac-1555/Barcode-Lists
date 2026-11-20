@@ -26,6 +26,7 @@ const DEFAULT_AUTO_ADD_CONFIG = {
   tcoSaveButtonXPath: '//*[@id="app_container"]/ppr-sign-edit/div/div/ppr-single-sign-edit/div/div[1]/div[1]/div/div/div[1]/cui-button[2]/span/button',
   tcoBackToBatchXPath: '//*[@id="cui-breadcrumb_1"]/a/cui-string/span',
   tcoTicketSizeTemplates: { ...TCOUtils.TICKET_SIZE_TEMPLATES },
+  tcoTicketSizePriceFields: TCOUtils.copyPriceFields(TCOUtils.TICKET_SIZE_PRICE_FIELDS),
   delayMs: 1500,
   timeoutMs: 8000
 };
@@ -243,7 +244,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       ? `TCO done: ${msg.added}/${msg.total} across ${listCount} list(s) (${skipped} skipped)`
       : `TCO done: ${msg.added}/${msg.total} across ${listCount} list(s)`;
     finishAutoAdd(summary);
-    if (msg.templates) {
+    if (msg.templates && msg.edited) {
+      showToast(`TCO templates applied: ${msg.templates} · prices set: ${msg.edited}`);
+    } else if (msg.templates) {
       showToast(`TCO templates applied: ${msg.templates || 0}`);
     } else {
       showToast(`TCO prices set: ${msg.edited || 0}`);
@@ -344,6 +347,14 @@ async function loadState() {
       templates[size] = xpath;
     }
     autoAddConfig.tcoTicketSizeTemplates = templates;
+
+    const savedFields = autoAddConfig.tcoTicketSizePriceFields || {};
+    const priceFields = TCOUtils.copyPriceFields(DEFAULT_AUTO_ADD_CONFIG.tcoTicketSizePriceFields);
+    for (const [size, xpaths] of Object.entries(savedFields)) {
+      const list = (Array.isArray(xpaths) ? xpaths : []).filter(Boolean);
+      if (list.length) priceFields[size] = list;
+    }
+    autoAddConfig.tcoTicketSizePriceFields = priceFields;
 
     if (migrated || templatesMigrated) {
       chrome.storage.local.set({ [autoAddStorageKey]: autoAddConfig });
@@ -1624,6 +1635,7 @@ function showSettingsModal() {
   document.getElementById("tcoTicketSizeTemplates").value = Object.keys(templateMap)
     .map((size) => `${size}=${templateMap[size]}`)
     .join("\n");
+  document.getElementById("tcoTicketSizePriceFields").value = formatTicketSizePriceFields(autoAddConfig.tcoTicketSizePriceFields);
   document.getElementById("autoAddDelay").value = autoAddConfig.delayMs || "";
   document.getElementById("autoAddTimeout").value = autoAddConfig.timeoutMs || "";
 
@@ -1650,6 +1662,28 @@ function parseTicketSizeTemplates(text) {
   return map;
 }
 
+function parseTicketSizePriceFields(text) {
+  const map = {};
+  String(text || "").split(/\r?\n/).forEach((line) => {
+    const trimmed = line.trim();
+    const separator = trimmed.indexOf("=");
+    if (separator <= 0) return;
+
+    const size = trimmed.slice(0, separator).trim().toLowerCase();
+    const xpaths = trimmed.slice(separator + 1).split("|").map((part) => part.trim()).filter(Boolean);
+    if (size && xpaths.length) {
+      map[size] = xpaths;
+    }
+  });
+  return map;
+}
+
+function formatTicketSizePriceFields(map) {
+  return Object.keys(map || {})
+    .map((size) => `${size}=${(map[size] || []).join(" | ")}`)
+    .join("\n");
+}
+
 async function saveSettings() {
   const newConfig = {
     searchInputXPath: document.getElementById("autoAddSearchInput").value.trim(),
@@ -1674,6 +1708,7 @@ async function saveSettings() {
     tcoSaveButtonXPath: document.getElementById("tcoSaveButton").value.trim(),
     tcoBackToBatchXPath: document.getElementById("tcoBackToBatch").value.trim(),
     tcoTicketSizeTemplates: parseTicketSizeTemplates(document.getElementById("tcoTicketSizeTemplates").value),
+    tcoTicketSizePriceFields: parseTicketSizePriceFields(document.getElementById("tcoTicketSizePriceFields").value),
     delayMs: parseInt(document.getElementById("autoAddDelay").value) || 1500,
     timeoutMs: parseInt(document.getElementById("autoAddTimeout").value) || 8000
   };
@@ -1926,6 +1961,8 @@ function getMissingXpaths(includeTco, hasTicketSizes) {
       if (!Object.keys(templates).length) missing.push("ticket size templates");
       if (!autoAddConfig.tcoSelectRowXPath) missing.push("select sign row");
       if (!autoAddConfig.tcoTicketSizeApplyXPath) missing.push("apply ticket size");
+      const priceFields = autoAddConfig.tcoTicketSizePriceFields || {};
+      if (!Object.keys(priceFields).length) missing.push("ticket size price fields");
     }
   }
   return missing;
@@ -2066,6 +2103,18 @@ async function startTcoBatchAdd() {
     });
     if (unknownSizes.size > 0) {
       showToast(`No template for ticket size(s): ${[...unknownSizes].join(", ")}`);
+      return;
+    }
+
+    const priceFields = autoAddConfig.tcoTicketSizePriceFields || {};
+    const unknownPriceSizes = new Set();
+    batches.forEach(b => {
+      Object.entries(b.ticketSizes || {}).forEach(([code, size]) => {
+        if (b.prices[code] && !(priceFields[size] || []).length) unknownPriceSizes.add(size);
+      });
+    });
+    if (unknownPriceSizes.size > 0) {
+      showToast(`No sale price fields for ticket size(s): ${[...unknownPriceSizes].join(", ")}`);
       return;
     }
   }

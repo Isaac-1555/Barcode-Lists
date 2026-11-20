@@ -131,3 +131,31 @@ test("legacy template map is kept for storage migration", () => {
     assert.match(xpath, /\/div\/div\[2\]/);
   });
 });
+
+test("default ticket size price fields", () => {
+  assert.deepEqual(TCOUtils.TICKET_SIZE_PRICE_FIELDS, {
+    "1": ['//*[@id="7079"]'],
+    "4": ['//*[@id="7079"]'],
+    "9": ['//*[@id="7079"]'],
+    "12": ['//*[@id="7054"]'],
+    "i9": ['//*[@id="7054"]'],
+    "r1": ['//*[@id="7098"]', '//*[@id="7099"]'],
+    "r4": ['//*[@id="7098"]', '//*[@id="7099"]'],
+    "r9": ['//*[@id="7098"]', '//*[@id="7099"]']
+  });
+});
+
+test("kg to lb conversion rounds to 2 decimals", () => {
+  assert.equal(TCOUtils.KG_TO_LB, 2.20462);
+  assert.equal(TCOUtils.convertKgToLb("5.00"), "2.27");
+  assert.equal(TCOUtils.convertKgToLb(4.99), "2.26");
+  assert.equal(TCOUtils.convertKgToLb(""), null);
+  assert.equal(TCOUtils.convertKgToLb("abc"), null);
+});
+
+test("copyPriceFields deep-copies the xpath arrays", () => {
+  const copy = TCOUtils.copyPriceFields(TCOUtils.TICKET_SIZE_PRICE_FIELDS);
+  copy.r9.push('//*[@id="9999"]');
+  assert.equal(TCOUtils.TICKET_SIZE_PRICE_FIELDS.r9.length, 2);
+  assert.equal(copy.r9.length, 3);
+});

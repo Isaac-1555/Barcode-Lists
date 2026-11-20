@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Barcode Lists",
-  "version": "7.17",
+  "version": "7.18",
   "description": "Store and manage barcode lists with Excel extraction",
   "permissions": [
     "storage",
@@ -31,6 +31,7 @@
         "<all_urls>"
       ],
       "js": [
+        "tco-utils.js",
         "content.js"
       ]
     }

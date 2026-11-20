@@ -25,10 +25,10 @@ A Chrome Extension (Manifest V3) for retail and store employees to store, organi
 - When the active list (or selected lists) contain barcodes with "TCO Price" or "Ticket Size" comments, the blue sparkles button is replaced by a yellow broom-sparkles button
 - Creates the batch, names it after the list, then adds every barcode as a sign
 - **Legacy sheets (no `TICKET SIZE` column):** applies the "12up Managers' Special" template to all signs, then edits each sign: searches the barcode, opens the sign edit sheet, replaces the price field value with the TCO price from the barcode comment, saves, and returns to the batch list
-- **`TICKET SIZE` sheets:** applies one template per UPC instead. Each UPC is searched, selected, change template is clicked, the card mapped from its `TICKET SIZE` value (e.g. `9`, `r9`, `i9`, `12`) is clicked directly, the apply button is clicked, and the price pass is skipped
+- **`TICKET SIZE` sheets:** applies one template per UPC instead. Each UPC is searched, selected, change template is clicked, the card mapped from its `TICKET SIZE` value (e.g. `9`, `r9`, `i9`, `12`) is clicked directly, the apply button is clicked. A second pass then searches each UPC again, opens the sign edit, sets the sale price field(s) mapped from its size, and saves (`r1` / `r4` / `r9` also fill the per-pound field with the price ÷ 2.20462, 2 decimals)
 - Ticket sizes are stored as a second comment line (`Ticket Size: r9`), survive reload/sync, and show as a `Ticket r9` badge in the review modal
 - Unknown sizes and rows with a blank size never abort the run: they are reported and skipped
-- Every TCO XPath, the per-UPC apply button, and the size → template map is configurable in Settings, ordered and labelled by the click each one performs
+- Every TCO XPath, the per-UPC apply button, the size → template map, and the size → sale price field map is configurable in Settings, ordered and labelled by the click each one performs
 
 ### Category Organization
 - Create, rename, and delete categories (e.g., "Dairy", "Produce")
@@ -219,6 +219,13 @@ There is no build step. The extension loads directly from source.
 5. UPCs with 5 digits or fewer are skipped (never searched on the site) and listed in a closable **Skipped UPCs** dialog when the run ends, with a search button per UPC so it can be added by hand
 
 ## Changelog
+
+### 7.18
+- Ticket-size lists now run a second per-UPC pass that sets the sale price in the sign edit view
+- Sale price fields vary by size: `1`/`4`/`9` → `#7079`, `12`/`i9` → `#7054`, `r1`/`r4`/`r9` → `#7098` plus `#7099`
+- The second field on `r` sizes receives the price converted from $/kg to $/lb (÷ 2.20462, 2 decimals)
+- UPCs with a blank ticket size still get no template and no price
+- Settings gains the editable size → sale price field map (`regular | per-pound`)
 
 ### 7.17
 - Ticket-size template cards moved to the new `div/div[1]` paths and are now clicked directly instead of via their `ppr-card-component` ancestor

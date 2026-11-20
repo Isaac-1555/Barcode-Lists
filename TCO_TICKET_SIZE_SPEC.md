@@ -1,6 +1,6 @@
 # Feature spec — TCO automation with per-UPC TICKET SIZE templates
 
-Status: **implemented in 7.17** (new card paths + per-UPC apply button)
+Status: **implemented in 7.18** (per-UPC template + sale price passes)
 Owner: Isaac Judah (request) / coding agent (implementation)
 Repo: `Barcode-Lists` (this repo)
 Sample input: `Test TCO.xlsx` (copied next to this file)
@@ -19,7 +19,8 @@ Required behaviour:
 - **Sheet has no `TICKET SIZE` column** → run today's TCO automation, unchanged.
 - **Sheet has `TICKET SIZE`** → create/load the batch and add the signs exactly like today, then
   for **each UPC individually**: search it → select it → Change template → pick the card mapped
-  from its `TICKET SIZE` value → Apply → continue with the next UPC.
+  from its `TICKET SIZE` value → Apply. A second pass then sets each UPC's sale price from the
+  size → price-field map (`r` sizes also fill the per-pound field with the value ÷ 2.20462).
 
 Everything stays deterministic and runs inside `content.js` against the live site. No network
 calls, no new permissions, no build step.
@@ -85,6 +86,17 @@ Workbook has a single sheet named **`Sheet1`** (not `DEPARTMENT`). A1 holds the 
 > `div[1]` is the clickable card face; the old `div[2]` paths are kept in
 > `LEGACY_TICKET_SIZE_TEMPLATES` only to migrate stored settings.
 
+### 3.3b Sale price fields (from the request email, 7.18)
+
+| TICKET SIZE | Sale price XPath(s) |
+|---|---|
+| `1`, `4`, `9` | `//*[@id="7079"]` |
+| `12`, `i9` | `//*[@id="7054"]` |
+| `r1`, `r4`, `r9` | `//*[@id="7098"]` (regular price) and `//*[@id="7099"]` (price ÷ 2.20462, 2 decimals) |
+
+Stored in `TICKET_SIZE_PRICE_FIELDS` (`tco-utils.js`), editable in Settings as
+`size=regularXPath | perPoundXPath` lines. The second XPath is always the per-pound field.
+
 ---
 
 ## 4. Decisions (defaults the agent may proceed with)
@@ -105,18 +117,18 @@ Workbook has a single sheet named **`Sheet1`** (not `DEPARTMENT`). A1 holds the 
   runs the new per-UPC loop **iff** the map is non-empty. Batches with no ticket sizes keep today's
   select-all + fixed template flow.
 - **D4 — Mixed rows in a ticket-size batch.** Rows that were added to the batch but have **no**
-  ticket size keep the default template and are counted in `templateSkipped`. They are still added
-  to the batch; nothing else is retried for them.
+  ticket size get **no template and no price**; they keep whatever the site defaulted to and are
+  counted in `templateSkipped`. Nothing else is retried for them.
 - **D5 — Unknown size.** If a UPC's size has no configured XPath, report
   `AUTO_ADD_ERROR { barcode, message: 'No template for ticket size "<x>"' }`, skip that UPC,
   continue the run. Never abort the whole batch for one bad row.
 - **D6 — Card click target.** Click the **configured XPath element itself** (`div[1]` card face). Do
   not climb to `closest('ppr-card-component')`: the host node ignores the click, which is why the old
   `div[2]` paths appeared to select nothing.
-- **D7 — No price pass on ticket-size sheets.** Per the request, sheets with `TICKET SIZE` skip
-  the per-sign price edit entirely; the run only applies templates. `TCO PRICE` is still imported
-  and stored in the comment (badge in the review modal) but is not written to the site.
-  `END DATE` is ignored. Legacy sheets keep template → price, unchanged.
+- **D7 — Price pass on ticket-size sheets.** After the template pass, a second per-UPC pass sets the
+  sale price in the sign edit view. Fields come from `TICKET_SIZE_PRICE_FIELDS`; the second field on
+  `r1`/`r4`/`r9` receives `price ÷ 2.20462` rounded to 2 decimals. UPCs with a blank ticket size are
+  left with no template and no price. Legacy sheets keep template → price, unchanged.
 - **D8 — Indent/style.** `popup.js` / `content.js` use **2-space** indentation, vanilla ES2022, no
   comments unless behaviour is non-obvious, no build step, no new dependencies.
 
@@ -137,9 +149,10 @@ Workbook has a single sheet named **`Sheet1`** (not `DEPARTMENT`). A1 holds the 
    run continues (D4).
 6. **Comment storage** — size is stored as a second line `Ticket Size: r9` (D1); unrelated
    comment text is preserved on rewrite.
-7. **Order per UPC** — search → select → change template → pick card → apply
-   (`tcoTicketSizeApplyXPath`, the sign-edit `cui-button[2]`) → next UPC. No price step, so template
-   re-render cannot break anything.
+7. **Order per UPC** — templates pass: search → select → change template → pick card → apply
+   (`tcoTicketSizeApplyXPath`, the sign-edit `cui-button[2]`) → next UPC. Then a separate price
+   pass: search → edit sign (`tcoEditSignXPath`) → fill the size's sale price field(s) → save →
+   back to batch → next UPC.
 8. **Robustness** — XPath-only mapping today; the map is editable in Settings. Name-based matching
    stays a possible follow-up.
 
@@ -164,6 +177,9 @@ Workbook has a single sheet named **`Sheet1`** (not `DEPARTMENT`). A1 holds the 
   `/ticket[\s_-]*size/` over the first 10 rows.
 - `TICKET_SIZE_TEMPLATES` — the default size → clickable card XPath map from §3.3.
 - `LEGACY_TICKET_SIZE_TEMPLATES` — the superseded `div[2]` map; used only to migrate stored configs.
+- `TICKET_SIZE_PRICE_FIELDS` — size → sale price XPath list (§3.3b); index 1 is the per-pound field.
+- `KG_TO_LB` / `convertKgToLb(value)` — $/kg → $/lb, `toFixed(2)`, `null` for non-numeric input.
+- `copyPriceFields(fields)` — deep copy for config defaults.
 
 `popup.js` keeps thin wrappers `getTcoPrice(barcode)` / `getTicketSize(barcode)` and a merge-only
 `setBarcodeMeta(barcode, patch)` that updates local state plus `saveComment` / `deleteComment`
@@ -206,6 +222,7 @@ Show it only when `item.ticketSize` is set. No new modal, no new screen.
 tcoSelectRowXPath: '//*[@id="ItemView-select-all"]/span',
 tcoTicketSizeApplyXPath: '//*[@id="app_container"]/ppr-sign-edit/.../cui-button[2]/span/button',
 tcoTicketSizeTemplates: { ...TCOUtils.TICKET_SIZE_TEMPLATES },
+tcoTicketSizePriceFields: TCOUtils.copyPriceFields(TCOUtils.TICKET_SIZE_PRICE_FIELDS),
 ```
 
 On load, stored maps are normalised: entries equal to `TCOUtils.LEGACY_TICKET_SIZE_TEMPLATES[size]`
@@ -233,15 +250,18 @@ Settings modal (TCO block, after `#tcoBackToBatch`):
   default `//*[@id="app_container"]/ppr-sign-edit/.../cui-button[2]/span/button`
 - `textarea#tcoTicketSizeTemplates` — placeholder `9=//*[@id="container"]/div[23]/.../div[1]`,
   **one `size=xpath` per line**
-- hint text updated to describe both modes.
+- `textarea#tcoTicketSizePriceFields` — **one `size=regularXPath | perPoundXPath` per line**;
+  the part after `|` receives `convertKgToLb(price)`
+- hint text updated to describe both passes.
 
-`showSettingsModal()` renders the map as lines; `saveSettings()` parses lines back into an object,
-skipping blanks and lowercasing keys. Persist through the existing `autoAddConfig` key.
+`showSettingsModal()` renders both maps as lines; `saveSettings()` parses them back (`size=...`,
+`|` separates the per-pound XPath), skipping blanks and lowercasing keys. Persist through the
+existing `autoAddConfig` key.
 
 Before launch, validate: for every UPC in every batch with a ticket size, the size must exist in
 `tcoTicketSizeTemplates`; otherwise `showToast('No template for ticket size(s): r5, i4')` and abort.
 Extend `getMissingXpaths(includeTco, hasTicketSizes)` with `tcoSelectRowXPath`,
-`tcoTicketSizeApplyXPath` and a non-empty map when `hasTicketSizes`.
+`tcoTicketSizeApplyXPath` and non-empty template + price-field maps when `hasTicketSizes`.
 
 ### 6.6 Batch payload (`startTcoBatchAdd`)
 
@@ -274,9 +294,14 @@ Keep `runTcoBatches()` as the entry point. After the add loop, branch:
 const hasTicketSizes = Object.keys(batch.ticketSizes || {}).length > 0;
 const opened = await openBatchAndPrepare(config, batch, b, batches, resumedBatch, !hasTicketSizes);
 if (opened) {
-  const result = hasTicketSizes
-    ? await runTicketSizeTemplateLoop(batch, config, b + 1, batches.length)
-    : await runTcoEditLoop(batch, config, b + 1, batches.length);
+  if (hasTicketSizes) {
+    const templateResult = await runTicketSizeTemplateLoop(batch, config, b + 1, batches.length);
+    const priceResult = await runTicketSizePriceLoop(batch, config, b + 1, batches.length);
+    editSkipped = templateResult.skipped + priceResult.skipped;
+  } else {
+    const editResult = await runTcoEditLoop(batch, config, b + 1, batches.length);
+    editSkipped = editResult.skipped;
+  }
 }
 ```
 
@@ -303,13 +328,25 @@ For each `barcode` in `batch.barcodes` (respect `autoAddState.stopped` between e
 7. Resolve the card: `waitForElementClickable(cardXPath, timeoutMs)`; click the element itself
    (D6, no `closest('ppr-card-component')`), sleep.
 8. Click `config.tcoTicketSizeApplyXPath` (fallback `config.tcoApplyTemplateXPath` if absent), sleep.
-9. No price step (D7). The batch grid stays open, so the next UPC can search immediately.
+9. The batch grid stays open, so the next UPC can search immediately.
 10. `applied++` / on any handled failure `skipped++`; mirror into
     `autoAddState.totalTemplates` / `totalTemplateSkipped`.
 
-`AUTO_TCO_DONE` now reports `added`, `edited`, `templates`, `skipped` (includes
-`templateSkipped`), `total`, `batches`. The popup shows "TCO templates applied: N" when
-`templates > 0`, otherwise "TCO prices set: N".
+Then `runTicketSizePriceLoop(batch, config, batchIndex, batchCount)`. For each barcode:
+
+1. No size or no `batch.prices[barcode]` → `editSkipped++`, continue (blank sizes stay untouched, D4).
+2. `fieldXPaths = config.tcoTicketSizePriceFields?.[size]`; empty → `AUTO_ADD_ERROR`, skip, continue.
+3. Report `AUTO_TCO_EDIT_PROGRESS` (includes `ticketSize`).
+4. Search the UPC, click `config.tcoEditSignXPath`, sleep.
+5. For each field: `waitForElement(xpath, timeoutMs)`; value = raw price for index 0,
+   `TCOUtils.convertKgToLb(price)` for index 1. Missing field or failed conversion →
+   `AUTO_ADD_ERROR`, mark failed, break.
+6. Failed → `skipped++`, `goBackToBatchList()`, continue.
+7. Click `config.tcoSaveButtonXPath`, sleep, `goBackToBatchList()`, `edited++` /
+   `autoAddState.totalEdited++`.
+
+`AUTO_TCO_DONE` reports `added`, `edited`, `templates`, `skipped` (includes template + price skips),
+`total`, `batches`. The popup toast shows templates and prices when both are non-zero.
 
 ### 6.8 Resume safety
 
@@ -337,6 +374,9 @@ asked — today's price loop has the same property.
 | `TICKET SIZE` blank on some rows | Row added to batch, keeps default template, counted as skipped |
 | Size with different case/whitespace (` R9 `) | Normalised to `r9` |
 | Size not in map | Error toast/log per UPC, run continues |
+| `r1` / `r4` / `r9` price | `#7098` gets the sheet value; `#7099` gets value ÷ 2.20462, 2 decimals |
+| Second price field missing | `AUTO_ADD_ERROR`, that UPC is skipped, run continues |
+| `TCO PRICE` missing on a sized row | Template still applied; price pass skips it |
 | UPC ≤ 5 digits | Already skipped by `prepareRunBatches()` |
 | UPC with 12 digits | Check digit stripped on add (auto) |
 | Row H says "no change" | Already skipped at import |
@@ -353,12 +393,13 @@ Manual (required, against the live site):
 
 1. Import `Test TCO.xlsx` → review modal shows `TCO 3.99` + `Ticket 9` badges for row 1, `TCO 4.99` + `Ticket r9` for row 2; check-digit toggle starts off and both 10-digit UPCs stay intact.
 2. Run the yellow broom on that list → batch created, both UPCs added, each one receives the
-   template for its size (check the batch grid after the run); no price edits happen.
+   template for its size (check the batch grid after the run); a second pass then saves the sale
+   price for each UPC (`9` → `#7079`, `r9` → `#7098` + converted `#7099`).
 3. Re-run the legacy Dalhousie sheet → identical behaviour to 7.15 (select-all, single template, price loop).
 4. Force an unknown size (`ticketSizes[barcode] = 'zz'`) → error for that UPC only, other UPCs finish.
 5. Stop button mid-run → stops within one UPC, `TCO stopped` state, no resume state left.
 6. Reload the tab mid-run (after the batch-open reload) → resumes the batch from the top.
-7. Settings: edit the map, reload the extension, values persist; malformed line ignored.
+7. Settings: edit both maps, reload the extension, values persist; malformed line ignored.
 
 Automated (`tco-utils.js` is a classic script with a guarded `module.exports`):
 
@@ -375,7 +416,9 @@ node --test test/*.test.mjs
 - normalisation (`" R9 "` → `r9`, `9` → `"9"`, `"12up"` → `"12"`, empty → `null`);
 - comment round-trip for price only / size only / both / empty, preservation of free-text lines,
   and removing one label without clobbering the other;
-- the default map covers all eight sizes and every entry targets a `ppr-card-component`.
+- the default map covers all eight sizes and every entry targets a `ppr-card-component`;
+- the price-field map matches the site IDs (`7079`, `7054`, `7098`, `7099`);
+- `convertKgToLb` rounds to 2 decimals and rejects non-numeric input.
 
 Keep the extension loadable from source at all times.
 
@@ -388,10 +431,10 @@ Keep the extension loadable from source at all times.
 - [x] Ticket size persists with the list (comment), survives reload, shows in the review modal.
 - [x] Missing/unknown size never aborts the run; it is reported and skipped.
 - [x] Stop works at every step; resume works after the deliberate reload.
-- [x] Settings expose the size→XPath map, the single-row select XPath, and the per-UPC apply button; values persist.
+- [x] Settings expose the size→XPath map, the single-row select XPath, the per-UPC apply button, and the size→sale price field map; values persist.
 - [x] No new permissions, no new runtime dependencies, no build step.
-- [ ] `manifest.json` bumped to **7.17**, README note updated, zip
-      `Barcode-Lists-7.17-upload.zip` produced the usual way.
+- [ ] `manifest.json` bumped to **7.18**, README note updated, zip
+      `Barcode-Lists-7.18-upload.zip` produced the usual way.
 
 ---
 
@@ -399,14 +442,14 @@ Keep the extension loadable from source at all times.
 
 | File | Change |
 |---|---|
-| `tco-utils.js` | comment parsing/merging, ticket-size normalisation, header lookup, default template map |
+| `tco-utils.js` | comment parsing/merging, ticket-size normalisation, header lookup, template + price maps, `convertKgToLb` |
 | `popup.js` | ticket-size column import, review badge, TCO detection, `setBarcodeMeta`, config defaults + settings save/load, payload, pre-flight validation, `AUTO_TCO_TEMPLATE_PROGRESS` handling, check-digit rule |
-| `popup.html` | `tco-utils.js` script tag, `#tcoSelectRow` input, `#tcoTicketSizeApply` input, `#tcoTicketSizeTemplates` textarea, numbered step layout for every automation |
+| `popup.html` | `tco-utils.js` script tag, `#tcoSelectRow`, `#tcoTicketSizeApply`, `#tcoTicketSizeTemplates`, `#tcoTicketSizePriceFields`, numbered step layout for every automation |
 | `popup.css` | `.ticket-badge`, `.settings-textarea`, settings step/section styles |
-| `content.js` | `openBatchAndPrepare()` refactor, `runTicketSizeTemplateLoop()`, `selectSignInBatch()`, `applyTemplateCard()`, new progress message + counters |
+| `content.js` | `openBatchAndPrepare()` refactor, `runTicketSizeTemplateLoop()`, `runTicketSizePriceLoop()`, `selectSignInBatch()`, `applyTemplateCard()`, progress messages + counters |
+| `manifest.json` | `tco-utils.js` in `content_scripts`, version `7.18` |
 | `AGENTS.md` | document the two TCO modes + comment format |
-| `README.md` | TCO section + 7.17 changelog |
-| `manifest.json` | version `7.17` |
+| `README.md` | TCO section + 7.18 changelog |
 | `test/tco-ticket-size.test.mjs` | Node built-in runner tests |
 
 Leave `background.js`, `supabase.js`, `manifest` permissions and sync logic untouched.

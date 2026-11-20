@@ -29,6 +29,33 @@ const TCOUtils = (() => {
     "12": '//*[@id="container"]/div[4]/ppr-card-component/div/div[2]/div/p'
   };
 
+  const TICKET_SIZE_PRICE_FIELDS = {
+    "1": ['//*[@id="7079"]'],
+    "4": ['//*[@id="7079"]'],
+    "9": ['//*[@id="7079"]'],
+    "12": ['//*[@id="7054"]'],
+    "i9": ['//*[@id="7054"]'],
+    "r1": ['//*[@id="7098"]', '//*[@id="7099"]'],
+    "r4": ['//*[@id="7098"]', '//*[@id="7099"]'],
+    "r9": ['//*[@id="7098"]', '//*[@id="7099"]']
+  };
+
+  const KG_TO_LB = 2.20462;
+
+  function convertKgToLb(value) {
+    const number = parseFloat(value);
+    if (!Number.isFinite(number)) return null;
+    return (number / KG_TO_LB).toFixed(2);
+  }
+
+  function copyPriceFields(fields) {
+    const copy = {};
+    Object.entries(fields || {}).forEach(([size, xpaths]) => {
+      copy[size] = Array.isArray(xpaths) ? xpaths.slice() : [];
+    });
+    return copy;
+  }
+
   function parseCommentFields(comment) {
     const fields = {};
     const labels = {};
@@ -134,6 +161,10 @@ const TCOUtils = (() => {
     findTicketSizeColumn,
     TICKET_SIZE_TEMPLATES,
     LEGACY_TICKET_SIZE_TEMPLATES,
+    TICKET_SIZE_PRICE_FIELDS,
+    KG_TO_LB,
+    convertKgToLb,
+    copyPriceFields,
     MAX_COMMENT_LENGTH
   };
 })();

@@ -350,10 +350,14 @@ async function runTcoBatches(batches, config, resumeData) {
         const hasTicketSizes = Object.keys(batch.ticketSizes || {}).length > 0;
         const opened = await openBatchAndPrepare(config, batch, b, batches, resumedBatch, !hasTicketSizes);
         if (opened) {
-          const editResult = hasTicketSizes
-            ? await runTicketSizeTemplateLoop(batch, config, b + 1, batches.length)
-            : await runTcoEditLoop(batch, config, b + 1, batches.length);
-          editSkipped = editResult.skipped;
+          if (hasTicketSizes) {
+            const templateResult = await runTicketSizeTemplateLoop(batch, config, b + 1, batches.length);
+            const priceResult = await runTicketSizePriceLoop(batch, config, b + 1, batches.length);
+            editSkipped = templateResult.skipped + priceResult.skipped;
+          } else {
+            const editResult = await runTcoEditLoop(batch, config, b + 1, batches.length);
+            editSkipped = editResult.skipped;
+          }
         }
       }
 
@@ -734,6 +738,124 @@ async function runTicketSizeTemplateLoop(batch, config, batchIndex, batchCount) 
   }
 
   return { applied, skipped };
+}
+
+async function runTicketSizePriceLoop(batch, config, batchIndex, batchCount) {
+  const barcodes = batch.barcodes;
+  const prices = batch.prices || {};
+  const sizes = batch.ticketSizes || {};
+  const priceFields = config.tcoTicketSizePriceFields || {};
+  let edited = 0;
+  let skipped = 0;
+
+  for (let i = 0; i < barcodes.length; i++) {
+    if (autoAddState.stopped) break;
+    const barcode = barcodes[i];
+    const size = sizes[barcode];
+
+    if (!size) continue;
+
+    if (!prices[barcode]) {
+      skipped++;
+      autoAddState.totalEditSkipped++;
+      continue;
+    }
+
+    const fieldXPaths = priceFields[size] || [];
+    if (!fieldXPaths.length) {
+      sendToExtension({ type: "AUTO_ADD_ERROR", barcode, message: `No price fields for ticket size "${size}"` });
+      skipped++;
+      autoAddState.totalEditSkipped++;
+      continue;
+    }
+
+    sendToExtension({
+      type: "AUTO_TCO_EDIT_PROGRESS",
+      index: i + 1,
+      total: barcodes.length,
+      barcode,
+      ticketSize: size,
+      batchName: batch.name,
+      batchIndex,
+      batchCount
+    });
+
+    const inputEl = getByXPath(config.searchInputXPath);
+    if (!inputEl) {
+      sendToExtension({ type: "AUTO_ADD_ERROR", barcode, message: `Search box not found: ${barcode}` });
+      skipped++;
+      autoAddState.totalEditSkipped++;
+      continue;
+    }
+    setInputValue(inputEl, "");
+    setInputValue(inputEl, barcode);
+    await sleep(config.delayMs);
+
+    const searchBtn = getByXPath(config.searchButtonXPath);
+    if (!searchBtn) {
+      sendToExtension({ type: "AUTO_ADD_ERROR", barcode, message: `Search button not found: ${barcode}` });
+      skipped++;
+      autoAddState.totalEditSkipped++;
+      continue;
+    }
+    searchBtn.click();
+    await sleep(config.delayMs);
+
+    const editLink = await waitForElementClickable(config.tcoEditSignXPath, config.timeoutMs);
+    if (!editLink) {
+      sendToExtension({ type: "AUTO_ADD_ERROR", barcode, message: `Sign not found for: ${barcode}` });
+      skipped++;
+      autoAddState.totalEditSkipped++;
+      continue;
+    }
+    editLink.click();
+    await sleep(config.delayMs);
+
+    let failed = false;
+    for (let f = 0; f < fieldXPaths.length; f++) {
+      const field = await waitForElement(fieldXPaths[f], config.timeoutMs);
+      if (!field) {
+        sendToExtension({ type: "AUTO_ADD_ERROR", barcode, message: `Price field ${f + 1} not found for: ${barcode}` });
+        failed = true;
+        break;
+      }
+      const value = f === 1 ? TCOUtils.convertKgToLb(prices[barcode]) : prices[barcode];
+      if (!value) {
+        sendToExtension({ type: "AUTO_ADD_ERROR", barcode, message: `Cannot convert price for: ${barcode}` });
+        failed = true;
+        break;
+      }
+      setInputValue(field, "");
+      setInputValue(field, value);
+      await sleep(config.delayMs);
+    }
+
+    if (failed) {
+      skipped++;
+      autoAddState.totalEditSkipped++;
+      await goBackToBatchList(config);
+      continue;
+    }
+
+    const saveBtn = await waitForElementClickable(config.tcoSaveButtonXPath, config.timeoutMs);
+    if (!saveBtn) {
+      sendToExtension({ type: "AUTO_ADD_ERROR", barcode, message: `Save button not found for: ${barcode}` });
+      skipped++;
+      autoAddState.totalEditSkipped++;
+      await goBackToBatchList(config);
+      continue;
+    }
+    saveBtn.click();
+    console.log("[BarcodeLists] saved TCO sale price for:", barcode);
+    await sleep(config.delayMs);
+
+    await goBackToBatchList(config);
+
+    edited++;
+    autoAddState.totalEdited++;
+  }
+
+  return { edited, skipped };
 }
 
 async function runTcoEditLoop(batch, config, batchIndex, batchCount) {
