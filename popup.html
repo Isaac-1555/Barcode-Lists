@@ -173,45 +173,130 @@
           <span>Show "Don't click away" toast when automation runs</span>
         </label>
         <hr class="settings-divider" />
-        <label class="settings-label">Auto Add XPath Settings</label>
-        <input type="text" id="autoAddSearchInput" placeholder="Search box XPath" class="settings-input" />
-        <input type="text" id="autoAddSearchButton" placeholder="Search button XPath" class="settings-input" />
-        <input type="text" id="autoAddCheckbox" placeholder="Result checkbox XPath" class="settings-input" />
-        <input type="text" id="autoAddAddButton" placeholder="Add button XPath" class="settings-input" />
-        <div class="settings-row">
-          <div class="settings-field">
-            <label class="settings-label">Delay (ms)</label>
-            <input type="number" id="autoAddDelay" class="settings-input" />
+        <div class="settings-section">
+          <h4 class="settings-section-title">Blue auto-add — per barcode</h4>
+          <p class="settings-section-subtitle">Runs once for each barcode in the list, in this order.</p>
+          <div class="settings-step">
+            <label class="settings-step-label" for="autoAddSearchInput"><span class="settings-step-num">1</span>Type the UPC into the search box</label>
+            <input type="text" id="autoAddSearchInput" placeholder="Search box XPath" class="settings-input" />
           </div>
-          <div class="settings-field">
-            <label class="settings-label">Wait timeout (ms)</label>
-            <input type="number" id="autoAddTimeout" class="settings-input" />
+          <div class="settings-step">
+            <label class="settings-step-label" for="autoAddSearchButton"><span class="settings-step-num">2</span>Click search</label>
+            <input type="text" id="autoAddSearchButton" placeholder="Search button XPath" class="settings-input" />
+          </div>
+          <div class="settings-step">
+            <label class="settings-step-label" for="autoAddCheckbox"><span class="settings-step-num">3</span>Tick the result checkbox</label>
+            <input type="text" id="autoAddCheckbox" placeholder="Result checkbox XPath" class="settings-input" />
+          </div>
+          <div class="settings-step">
+            <label class="settings-step-label" for="autoAddAddButton"><span class="settings-step-num">4</span>Click add</label>
+            <input type="text" id="autoAddAddButton" placeholder="Add button XPath" class="settings-input" />
           </div>
         </div>
-        <p class="settings-hint">These run on the active tab. Each barcode is typed, searched, checkbox clicked, then added.</p>
         <hr class="settings-divider" />
-        <label class="settings-label">Batch Setup XPath Settings</label>
-        <input type="text" id="batchCreateInput" placeholder="Create batch button XPath" class="settings-input" />
-        <input type="text" id="batchNameInput" placeholder="Batch name box XPath" class="settings-input" />
-        <input type="text" id="batchConfirmCreate" placeholder="Create (confirm) button XPath" class="settings-input" />
-        <input type="text" id="batchSignsDropdown" placeholder="Add signs dropdown XPath" class="settings-input" />
-        <input type="text" id="batchItemLibrary" placeholder="Item Library option XPath" class="settings-input" />
-        <input type="text" id="batchEndStep" placeholder="End step XPath (breadcrumb to start)" class="settings-input" />
-        <p class="settings-hint">Runs once before the loop: create batch, name it after the list, create, open Add signs, pick Item Library. End step clicks the breadcrumb after the loop finishes.</p>
+        <div class="settings-section">
+          <h4 class="settings-section-title">Batch setup — once per list</h4>
+          <p class="settings-section-subtitle">Runs before the per-barcode loop.</p>
+          <div class="settings-step">
+            <label class="settings-step-label" for="batchCreateInput"><span class="settings-step-num">1</span>Click create batch</label>
+            <input type="text" id="batchCreateInput" class="settings-input" placeholder="Create batch button XPath" />
+          </div>
+          <div class="settings-step">
+            <label class="settings-step-label" for="batchNameInput"><span class="settings-step-num">2</span>Type the list name into the batch name box</label>
+            <input type="text" id="batchNameInput" class="settings-input" placeholder="Batch name box XPath" />
+          </div>
+          <div class="settings-step">
+            <label class="settings-step-label" for="batchConfirmCreate"><span class="settings-step-num">3</span>Click create (confirm)</label>
+            <input type="text" id="batchConfirmCreate" class="settings-input" placeholder="Create confirm button XPath" />
+          </div>
+          <div class="settings-step">
+            <label class="settings-step-label" for="batchSignsDropdown"><span class="settings-step-num">4</span>Open the add signs dropdown</label>
+            <input type="text" id="batchSignsDropdown" class="settings-input" placeholder="Add signs dropdown XPath" />
+          </div>
+          <div class="settings-step">
+            <label class="settings-step-label" for="batchItemLibrary"><span class="settings-step-num">5</span>Pick Item Library</label>
+            <input type="text" id="batchItemLibrary" class="settings-input" placeholder="Item Library option XPath" />
+          </div>
+          <div class="settings-step">
+            <label class="settings-step-label" for="batchEndStep"><span class="settings-step-num">6</span>End step breadcrumb (after the run finishes)</label>
+            <input type="text" id="batchEndStep" class="settings-input" placeholder="End step XPath (breadcrumb to start)" />
+          </div>
+        </div>
         <hr class="settings-divider" />
-        <label class="settings-label">TCO Automation XPath Settings (yellow broom button)</label>
-        <input type="text" id="tcoChangeTemplate" placeholder="Change template button XPath" class="settings-input" />
-        <input type="text" id="tcoTemplateOption" placeholder="Template card XPath (12up Managers' Special)" class="settings-input" />
-        <input type="text" id="tcoApplyTemplate" placeholder="Apply template button XPath" class="settings-input" />
-        <input type="text" id="tcoOpenBatch" placeholder="Open created batch XPath (breadcrumb)" class="settings-input" />
-        <input type="text" id="tcoSelectAll" placeholder="Select all signs in batch XPath" class="settings-input" />
-        <input type="text" id="tcoSelectRow" placeholder="Select searched sign XPath (item grid checkbox)" class="settings-input" />
-        <input type="text" id="tcoEditSign" placeholder="Edit sign link XPath (search result row)" class="settings-input" />
-        <input type="text" id="tcoPriceField" placeholder="TCO price field XPath (sign edit)" class="settings-input" />
-        <input type="text" id="tcoSaveButton" placeholder="Save button XPath (sign edit)" class="settings-input" />
-        <input type="text" id="tcoBackToBatch" placeholder="Back to batch list XPath (breadcrumb)" class="settings-input" />
-        <textarea id="tcoTicketSizeTemplates" rows="4" placeholder="TICKET SIZE templates, one size=card XPath per line:&#10;9=//*[@id=&quot;container&quot;]/div[23]/ppr-card-component/div/div[2]/div/p&#10;r9=//*[@id=&quot;container&quot;]/div[22]/ppr-card-component/div/div[2]/div/p" class="settings-input settings-textarea"></textarea>
-        <p class="settings-hint">Yellow button runs when the selected list has barcodes with "TCO Price" or "Ticket Size" comments. Adds every barcode exactly like the blue button (create batch, Add signs, From item library). Lists without ticket sizes then open the created batch, refresh the page so all barcodes load, select all signs, apply one template, and set each price. Lists with ticket sizes apply one template per UPC instead (size map above) and skip the price pass; rows with a blank ticket size are left with the default template.</p>
+        <div class="settings-section">
+          <h4 class="settings-section-title">TCO — shared steps</h4>
+          <p class="settings-section-subtitle">Yellow broom button. Search box and search button reuse blue auto-add steps 1-2.</p>
+          <div class="settings-step">
+            <label class="settings-step-label" for="tcoOpenBatch"><span class="settings-step-num">1</span>Open the created batch (breadcrumb)</label>
+            <input type="text" id="tcoOpenBatch" class="settings-input" placeholder="Open created batch XPath (breadcrumb)" />
+          </div>
+          <div class="settings-step">
+            <label class="settings-step-label" for="tcoChangeTemplate"><span class="settings-step-num">2</span>Click change template</label>
+            <input type="text" id="tcoChangeTemplate" class="settings-input" placeholder="Change template button XPath" />
+          </div>
+        </div>
+        <div class="settings-section settings-subsection">
+          <h5 class="settings-group-title">Lists without Ticket Size (legacy)</h5>
+          <div class="settings-step">
+            <label class="settings-step-label" for="tcoSelectAll"><span class="settings-step-num">3</span>Select all signs</label>
+            <input type="text" id="tcoSelectAll" class="settings-input" placeholder="Select all signs in batch XPath" />
+          </div>
+          <div class="settings-step">
+            <label class="settings-step-label" for="tcoTemplateOption"><span class="settings-step-num">4</span>Pick the template card (12up Managers' Special)</label>
+            <input type="text" id="tcoTemplateOption" class="settings-input" placeholder="Template card XPath" />
+          </div>
+          <div class="settings-step">
+            <label class="settings-step-label" for="tcoApplyTemplate"><span class="settings-step-num">5</span>Click apply template</label>
+            <input type="text" id="tcoApplyTemplate" class="settings-input" placeholder="Apply template button XPath" />
+          </div>
+          <div class="settings-step">
+            <label class="settings-step-label" for="tcoEditSign"><span class="settings-step-num">6</span>Open the sign edit link</label>
+            <input type="text" id="tcoEditSign" class="settings-input" placeholder="Edit sign link XPath (search result row)" />
+          </div>
+          <div class="settings-step">
+            <label class="settings-step-label" for="tcoPriceField"><span class="settings-step-num">7</span>Type the TCO price</label>
+            <input type="text" id="tcoPriceField" class="settings-input" placeholder="TCO price field XPath (sign edit)" />
+          </div>
+          <div class="settings-step">
+            <label class="settings-step-label" for="tcoSaveButton"><span class="settings-step-num">8</span>Click save</label>
+            <input type="text" id="tcoSaveButton" class="settings-input" placeholder="Save button XPath (sign edit)" />
+          </div>
+          <div class="settings-step">
+            <label class="settings-step-label" for="tcoBackToBatch"><span class="settings-step-num">9</span>Go back to the batch list (breadcrumb)</label>
+            <input type="text" id="tcoBackToBatch" class="settings-input" placeholder="Back to batch list XPath (breadcrumb)" />
+          </div>
+        </div>
+        <div class="settings-section settings-subsection">
+          <h5 class="settings-group-title">Lists with Ticket Size (per UPC)</h5>
+          <p class="settings-section-subtitle">Replaces the legacy steps 3-9. One UPC at a time: search, select row, change template, pick size card, apply.</p>
+          <div class="settings-step">
+            <label class="settings-step-label" for="tcoSelectRow"><span class="settings-step-num">3</span>Tick the searched sign row</label>
+            <input type="text" id="tcoSelectRow" class="settings-input" placeholder="Select searched sign XPath (item grid checkbox)" />
+          </div>
+          <div class="settings-step">
+            <label class="settings-step-label" for="tcoTicketSizeApply"><span class="settings-step-num">4</span>Click change template / apply after picking the ticket size card</label>
+            <input type="text" id="tcoTicketSizeApply" class="settings-input" placeholder="Apply ticket size template button XPath" />
+          </div>
+          <div class="settings-step">
+            <label class="settings-step-label" for="tcoTicketSizeTemplates"><span class="settings-step-num">5</span>Ticket size to card XPath map</label>
+            <textarea id="tcoTicketSizeTemplates" rows="8" placeholder="One size=card XPath per line:&#10;9=//*[@id=&quot;container&quot;]/div[23]/ppr-card-component/div/div[1]&#10;r9=//*[@id=&quot;container&quot;]/div[22]/ppr-card-component/div/div[1]" class="settings-input settings-textarea"></textarea>
+          </div>
+        </div>
+        <hr class="settings-divider" />
+        <div class="settings-section">
+          <h4 class="settings-section-title">Timing</h4>
+          <div class="settings-row">
+            <div class="settings-field">
+              <label class="settings-label" for="autoAddDelay">Delay between clicks (ms)</label>
+              <input type="number" id="autoAddDelay" class="settings-input" />
+            </div>
+            <div class="settings-field">
+              <label class="settings-label" for="autoAddTimeout">Wait timeout (ms)</label>
+              <input type="number" id="autoAddTimeout" class="settings-input" />
+            </div>
+          </div>
+          <p class="settings-hint">Steps run on the active tab, top to bottom, using the order shown above. A missing element waits up to the timeout, then the UPC is skipped and reported.</p>
+        </div>
       </div>
       <div class="modal-footer">
         <button id="saveSettingsBtn" class="add-btn">Save</button>

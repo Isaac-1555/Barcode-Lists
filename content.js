@@ -648,23 +648,30 @@ async function applyTemplateCard(barcode, cardXPath, config) {
     return false;
   }
   changeTemplateBtn.click();
+  console.log("[BarcodeLists] clicked change template for:", barcode);
   await sleep(config.delayMs);
 
-  const cardEl = await waitForElement(cardXPath, config.timeoutMs);
+  const cardEl = await waitForElementClickable(cardXPath, config.timeoutMs);
   if (!cardEl) {
-    sendToExtension({ type: "AUTO_ADD_ERROR", barcode, message: `Template card not found for: ${barcode}` });
+    sendToExtension({ type: "AUTO_ADD_ERROR", barcode, message: `Ticket size card not found for: ${barcode}` });
     return false;
   }
-  const card = (cardEl.closest && cardEl.closest("ppr-card-component")) || cardEl;
-  card.click();
+  cardEl.click();
+  console.log("[BarcodeLists] clicked ticket size card:", cardXPath);
   await sleep(config.delayMs);
 
-  const applyBtn = await waitForElementClickable(config.tcoApplyTemplateXPath, config.timeoutMs);
+  const applyXPaths = [config.tcoTicketSizeApplyXPath, config.tcoApplyTemplateXPath].filter(Boolean);
+  let applyBtn = null;
+  for (const xpath of applyXPaths) {
+    applyBtn = await waitForElementClickable(xpath, Math.min(config.timeoutMs, 4000));
+    if (applyBtn) break;
+  }
   if (!applyBtn) {
-    sendToExtension({ type: "AUTO_ADD_ERROR", barcode, message: `Apply template button not found for: ${barcode}` });
+    sendToExtension({ type: "AUTO_ADD_ERROR", barcode, message: `Apply ticket size button not found for: ${barcode}` });
     return false;
   }
   applyBtn.click();
+  console.log("[BarcodeLists] applied ticket size template for:", barcode);
   await sleep(config.delayMs);
   return true;
 }

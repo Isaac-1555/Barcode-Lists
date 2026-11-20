@@ -8,6 +8,17 @@ const TCOUtils = (() => {
   };
 
   const TICKET_SIZE_TEMPLATES = {
+    "1": '//*[@id="container"]/div[9]/ppr-card-component/div/div[1]',
+    "r1": '//*[@id="container"]/div[8]/ppr-card-component/div/div[1]',
+    "4": '//*[@id="container"]/div[16]/ppr-card-component/div/div[1]',
+    "r4": '//*[@id="container"]/div[15]/ppr-card-component/div/div[1]',
+    "9": '//*[@id="container"]/div[23]/ppr-card-component/div/div[1]',
+    "r9": '//*[@id="container"]/div[22]/ppr-card-component/div/div[1]',
+    "i9": '//*[@id="container"]/div[30]/ppr-card-component/div/div[1]',
+    "12": '//*[@id="container"]/div[4]/ppr-card-component/div/div[1]'
+  };
+
+  const LEGACY_TICKET_SIZE_TEMPLATES = {
     "1": '//*[@id="container"]/div[9]/ppr-card-component/div/div[2]',
     "r1": '//*[@id="container"]/div[8]/ppr-card-component/div/div[2]',
     "4": '//*[@id="container"]/div[16]/ppr-card-component/div/div[2]',
@@ -122,6 +133,7 @@ const TCOUtils = (() => {
     mergeCommentMeta,
     findTicketSizeColumn,
     TICKET_SIZE_TEMPLATES,
+    LEGACY_TICKET_SIZE_TEMPLATES,
     MAX_COMMENT_LENGTH
   };
 })();

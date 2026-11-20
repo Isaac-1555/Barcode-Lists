@@ -17,6 +17,7 @@ const DEFAULT_AUTO_ADD_CONFIG = {
   tcoChangeTemplateXPath: '//*[@id="assetFilter"]/div[2]/div/div/div/cui-toolbar/div/cui-toolbar-group[5]/div/cui-button/span/button',
   tcoTemplateOptionXPath: '//*[@id="container"]/div[4]/ppr-card-component/div/div[1]',
   tcoApplyTemplateXPath: '//*[@id="app_container"]/ppr-sign-grid/div/cui-modal/div/div[2]/div[1]/cui-modal-footer/cui-priv-block/div/cui-button[2]/span/button',
+  tcoTicketSizeApplyXPath: '//*[@id="app_container"]/ppr-sign-edit/div/div/ppr-single-sign-edit/div/div[1]/div[1]/div/div/div[1]/cui-button[2]/span/button',
   tcoOpenBatchXPath: '//*[@id="cui-breadcrumb_1"]/a/cui-string/span',
   tcoSelectAllXPath: '//*[@id="SignView-select-all"]/span',
   tcoSelectRowXPath: '//*[@id="ItemView-select-all"]/span',
@@ -330,7 +331,21 @@ async function loadState() {
         migrated = true;
       }
     }
-    if (migrated) {
+
+    const savedTemplates = autoAddConfig.tcoTicketSizeTemplates || {};
+    const templates = { ...DEFAULT_AUTO_ADD_CONFIG.tcoTicketSizeTemplates };
+    let templatesMigrated = false;
+    for (const [size, xpath] of Object.entries(savedTemplates)) {
+      if (!xpath || xpath === DEFAULT_AUTO_ADD_CONFIG.tcoTicketSizeTemplates[size]) continue;
+      if (xpath === TCOUtils.LEGACY_TICKET_SIZE_TEMPLATES[size]) {
+        templatesMigrated = true;
+        continue;
+      }
+      templates[size] = xpath;
+    }
+    autoAddConfig.tcoTicketSizeTemplates = templates;
+
+    if (migrated || templatesMigrated) {
       chrome.storage.local.set({ [autoAddStorageKey]: autoAddConfig });
     }
   }
@@ -1597,6 +1612,7 @@ function showSettingsModal() {
   document.getElementById("tcoChangeTemplate").value = autoAddConfig.tcoChangeTemplateXPath || "";
   document.getElementById("tcoTemplateOption").value = autoAddConfig.tcoTemplateOptionXPath || "";
   document.getElementById("tcoApplyTemplate").value = autoAddConfig.tcoApplyTemplateXPath || "";
+  document.getElementById("tcoTicketSizeApply").value = autoAddConfig.tcoTicketSizeApplyXPath || "";
   document.getElementById("tcoOpenBatch").value = autoAddConfig.tcoOpenBatchXPath || "";
   document.getElementById("tcoSelectAll").value = autoAddConfig.tcoSelectAllXPath || "";
   document.getElementById("tcoSelectRow").value = autoAddConfig.tcoSelectRowXPath || "";
@@ -1649,6 +1665,7 @@ async function saveSettings() {
     tcoChangeTemplateXPath: document.getElementById("tcoChangeTemplate").value.trim(),
     tcoTemplateOptionXPath: document.getElementById("tcoTemplateOption").value.trim(),
     tcoApplyTemplateXPath: document.getElementById("tcoApplyTemplate").value.trim(),
+    tcoTicketSizeApplyXPath: document.getElementById("tcoTicketSizeApply").value.trim(),
     tcoOpenBatchXPath: document.getElementById("tcoOpenBatch").value.trim(),
     tcoSelectAllXPath: document.getElementById("tcoSelectAll").value.trim(),
     tcoSelectRowXPath: document.getElementById("tcoSelectRow").value.trim(),
@@ -1908,6 +1925,7 @@ function getMissingXpaths(includeTco, hasTicketSizes) {
       const templates = autoAddConfig.tcoTicketSizeTemplates || {};
       if (!Object.keys(templates).length) missing.push("ticket size templates");
       if (!autoAddConfig.tcoSelectRowXPath) missing.push("select sign row");
+      if (!autoAddConfig.tcoTicketSizeApplyXPath) missing.push("apply ticket size");
     }
   }
   return missing;

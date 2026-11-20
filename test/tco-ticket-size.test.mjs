@@ -105,5 +105,29 @@ test("default template map covers every documented size", () => {
   );
   Object.values(TCOUtils.TICKET_SIZE_TEMPLATES).forEach((xpath) => {
     assert.match(xpath, /ppr-card-component/);
+    assert.match(xpath, /\/div\/div\[1\]$/);
+  });
+});
+
+test("default template map matches the new clickable card paths", () => {
+  assert.deepEqual(TCOUtils.TICKET_SIZE_TEMPLATES, {
+    "1": '//*[@id="container"]/div[9]/ppr-card-component/div/div[1]',
+    "r1": '//*[@id="container"]/div[8]/ppr-card-component/div/div[1]',
+    "4": '//*[@id="container"]/div[16]/ppr-card-component/div/div[1]',
+    "r4": '//*[@id="container"]/div[15]/ppr-card-component/div/div[1]',
+    "9": '//*[@id="container"]/div[23]/ppr-card-component/div/div[1]',
+    "r9": '//*[@id="container"]/div[22]/ppr-card-component/div/div[1]',
+    "i9": '//*[@id="container"]/div[30]/ppr-card-component/div/div[1]',
+    "12": '//*[@id="container"]/div[4]/ppr-card-component/div/div[1]'
+  });
+});
+
+test("legacy template map is kept for storage migration", () => {
+  assert.deepEqual(
+    Object.keys(TCOUtils.LEGACY_TICKET_SIZE_TEMPLATES).sort(),
+    Object.keys(TCOUtils.TICKET_SIZE_TEMPLATES).sort()
+  );
+  Object.values(TCOUtils.LEGACY_TICKET_SIZE_TEMPLATES).forEach((xpath) => {
+    assert.match(xpath, /\/div\/div\[2\]/);
   });
 });

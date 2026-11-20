@@ -1,6 +1,6 @@
 # Feature spec — TCO automation with per-UPC TICKET SIZE templates
 
-Status: **implemented in 7.16** (decisions from §5 folded in below)
+Status: **implemented in 7.17** (new card paths + per-UPC apply button)
 Owner: Isaac Judah (request) / coding agent (implementation)
 Repo: `Barcode-Lists` (this repo)
 Sample input: `Test TCO.xlsx` (copied next to this file)
@@ -71,17 +71,19 @@ Workbook has a single sheet named **`Sheet1`** (not `DEPARTMENT`). A1 holds the 
 
 | TICKET SIZE | Template card XPath |
 |---|---|
-| `i9` | `//*[@id="container"]/div[30]/ppr-card-component/div/div[2]/div/p` |
-| `9` | `//*[@id="container"]/div[23]/ppr-card-component/div/div[2]/div/p` |
-| `r9` | `//*[@id="container"]/div[22]/ppr-card-component/div/div[2]/div/p` |
-| `4` | `//*[@id="container"]/div[16]/ppr-card-component/div/div[2]` |
-| `r4` | `//*[@id="container"]/div[15]/ppr-card-component/div/div[2]` |
-| `1` | `//*[@id="container"]/div[9]/ppr-card-component/div/div[2]` |
-| `r1` | `//*[@id="container"]/div[8]/ppr-card-component/div/div[2]` |
-| `12` | `//*[@id="container"]/div[4]/ppr-card-component/div/div[2]/div/p` |
+| `i9` | `//*[@id="container"]/div[30]/ppr-card-component/div/div[1]` |
+| `9` | `//*[@id="container"]/div[23]/ppr-card-component/div/div[1]` |
+| `r9` | `//*[@id="container"]/div[22]/ppr-card-component/div/div[1]` |
+| `4` | `//*[@id="container"]/div[16]/ppr-card-component/div/div[1]` |
+| `r4` | `//*[@id="container"]/div[15]/ppr-card-component/div/div[1]` |
+| `1` | `//*[@id="container"]/div[9]/ppr-card-component/div/div[1]` |
+| `r1` | `//*[@id="container"]/div[8]/ppr-card-component/div/div[1]` |
+| `12` | `//*[@id="container"]/div[4]/ppr-card-component/div/div[1]` |
 
 > ⚠️ These are **position-dependent**. `div[N]` shifts if the template modal gains/loses a card.
 > Optional hardening (Q8): match the card by its visible title text and treat the XPath as fallback.
+> `div[1]` is the clickable card face; the old `div[2]` paths are kept in
+> `LEGACY_TICKET_SIZE_TEMPLATES` only to migrate stored settings.
 
 ---
 
@@ -108,9 +110,9 @@ Workbook has a single sheet named **`Sheet1`** (not `DEPARTMENT`). A1 holds the 
 - **D5 — Unknown size.** If a UPC's size has no configured XPath, report
   `AUTO_ADD_ERROR { barcode, message: 'No template for ticket size "<x>"' }`, skip that UPC,
   continue the run. Never abort the whole batch for one bad row.
-- **D6 — Card click target.** Click `closest('ppr-card-component')` of the configured XPath so a
-  card is selected the same way a human click on the card face does; fall back to clicking the
-  matched element itself when it already is a `ppr-card-component`.
+- **D6 — Card click target.** Click the **configured XPath element itself** (`div[1]` card face). Do
+  not climb to `closest('ppr-card-component')`: the host node ignores the click, which is why the old
+  `div[2]` paths appeared to select nothing.
 - **D7 — No price pass on ticket-size sheets.** Per the request, sheets with `TICKET SIZE` skip
   the per-sign price edit entirely; the run only applies templates. `TCO PRICE` is still imported
   and stored in the comment (badge in the review modal) but is not written to the site.
@@ -129,14 +131,15 @@ Workbook has a single sheet named **`Sheet1`** (not `DEPARTMENT`). A1 holds the 
    `Sign not found`.
 3. **Price / END DATE** — no per-sign price edit for ticket-size sheets; `END DATE` is
    informational only.
-4. **Card click target** — clicking the closest `ppr-card-component` selects the card; inner
-   `div[2]` / `p` targets keep working (D6).
+4. **Card click target** — click the exact `div[1]` element the XPath resolves to. The old
+   `closest('ppr-card-component')` climb is gone.
 5. **Mixed rows** — blank `TICKET SIZE` keeps the default template, is counted as skipped, and the
    run continues (D4).
 6. **Comment storage** — size is stored as a second line `Ticket Size: r9` (D1); unrelated
    comment text is preserved on rewrite.
-7. **Order per UPC** — search → select → change template → pick card → apply → next UPC. No price
-   step, so template re-render cannot break anything.
+7. **Order per UPC** — search → select → change template → pick card → apply
+   (`tcoTicketSizeApplyXPath`, the sign-edit `cui-button[2]`) → next UPC. No price step, so template
+   re-render cannot break anything.
 8. **Robustness** — XPath-only mapping today; the map is editable in Settings. Name-based matching
    stays a possible follow-up.
 
@@ -159,7 +162,8 @@ Workbook has a single sheet named **`Sheet1`** (not `DEPARTMENT`). A1 holds the 
 - `normaliseTicketSize(value)` → `" R9 "` → `"r9"`, numeric `9` → `"9"`, `"12up"` → `"12"`.
 - `findTicketSizeColumn(workbook, sheetName, utils)` → `{ headerRow, col }` using
   `/ticket[\s_-]*size/` over the first 10 rows.
-- `TICKET_SIZE_TEMPLATES` — the default size → card XPath map from §3.3.
+- `TICKET_SIZE_TEMPLATES` — the default size → clickable card XPath map from §3.3.
+- `LEGACY_TICKET_SIZE_TEMPLATES` — the superseded `div[2]` map; used only to migrate stored configs.
 
 `popup.js` keeps thin wrappers `getTcoPrice(barcode)` / `getTicketSize(barcode)` and a merge-only
 `setBarcodeMeta(barcode, patch)` that updates local state plus `saveComment` / `deleteComment`
@@ -200,29 +204,35 @@ Show it only when `item.ticketSize` is set. No new modal, no new screen.
 
 ```js
 tcoSelectRowXPath: '//*[@id="ItemView-select-all"]/span',
+tcoTicketSizeApplyXPath: '//*[@id="app_container"]/ppr-sign-edit/.../cui-button[2]/span/button',
 tcoTicketSizeTemplates: { ...TCOUtils.TICKET_SIZE_TEMPLATES },
 ```
+
+On load, stored maps are normalised: entries equal to `TCOUtils.LEGACY_TICKET_SIZE_TEMPLATES[size]`
+are replaced with the new `div[1]` default; custom user paths are kept; missing keys are backfilled.
 
 `TICKET_SIZE_TEMPLATES` lives in `tco-utils.js`:
 
 ```js
 {
-  '1':  '//*[@id="container"]/div[9]/ppr-card-component/div/div[2]',
-  'r1': '//*[@id="container"]/div[8]/ppr-card-component/div/div[2]',
-  '4':  '//*[@id="container"]/div[16]/ppr-card-component/div/div[2]',
-  'r4': '//*[@id="container"]/div[15]/ppr-card-component/div/div[2]',
-  '9':  '//*[@id="container"]/div[23]/ppr-card-component/div/div[2]/div/p',
-  'r9': '//*[@id="container"]/div[22]/ppr-card-component/div/div[2]/div/p',
-  'i9': '//*[@id="container"]/div[30]/ppr-card-component/div/div[2]/div/p',
-  '12': '//*[@id="container"]/div[4]/ppr-card-component/div/div[2]/div/p'
+  '1':  '//*[@id="container"]/div[9]/ppr-card-component/div/div[1]',
+  'r1': '//*[@id="container"]/div[8]/ppr-card-component/div/div[1]',
+  '4':  '//*[@id="container"]/div[16]/ppr-card-component/div/div[1]',
+  'r4': '//*[@id="container"]/div[15]/ppr-card-component/div/div[1]',
+  '9':  '//*[@id="container"]/div[23]/ppr-card-component/div/div[1]',
+  'r9': '//*[@id="container"]/div[22]/ppr-card-component/div/div[1]',
+  'i9': '//*[@id="container"]/div[30]/ppr-card-component/div/div[1]',
+  '12': '//*[@id="container"]/div[4]/ppr-card-component/div/div[1]'
 }
 ```
 
 Settings modal (TCO block, after `#tcoBackToBatch`):
 
 - `input#tcoSelectRow` — "Select one sign in the filtered batch XPath"
-- `textarea#tcoTicketSizeTemplates` — placeholder `9=//*[@id="container"]/div[23]/...`, **one
-  `size=xpath` per line**
+- `input#tcoTicketSizeApply` — "Apply after picking the ticket size card",
+  default `//*[@id="app_container"]/ppr-sign-edit/.../cui-button[2]/span/button`
+- `textarea#tcoTicketSizeTemplates` — placeholder `9=//*[@id="container"]/div[23]/.../div[1]`,
+  **one `size=xpath` per line**
 - hint text updated to describe both modes.
 
 `showSettingsModal()` renders the map as lines; `saveSettings()` parses lines back into an object,
@@ -230,8 +240,8 @@ skipping blanks and lowercasing keys. Persist through the existing `autoAddConfi
 
 Before launch, validate: for every UPC in every batch with a ticket size, the size must exist in
 `tcoTicketSizeTemplates`; otherwise `showToast('No template for ticket size(s): r5, i4')` and abort.
-Extend `getMissingXpaths(includeTco, hasTicketSizes)` with `tcoSelectRowXPath` and a non-empty map
-when `hasTicketSizes`.
+Extend `getMissingXpaths(includeTco, hasTicketSizes)` with `tcoSelectRowXPath`,
+`tcoTicketSizeApplyXPath` and a non-empty map when `hasTicketSizes`.
 
 ### 6.6 Batch payload (`startTcoBatchAdd`)
 
@@ -290,9 +300,9 @@ For each `barcode` in `batch.barcodes` (respect `autoAddState.stopped` between e
    `config.tcoSelectAllXPath`, each with `min(timeoutMs, 4000)`. First hit is clicked.
    If none → `AUTO_ADD_ERROR`, skip, continue.
 6. Click `config.tcoChangeTemplateXPath` (waitForElementClickable), sleep.
-7. Resolve the card: `waitForElement(cardXPath, timeoutMs)`; click
-   `el.closest('ppr-card-component') || el` (D6), sleep.
-8. Click `config.tcoApplyTemplateXPath`, sleep.
+7. Resolve the card: `waitForElementClickable(cardXPath, timeoutMs)`; click the element itself
+   (D6, no `closest('ppr-card-component')`), sleep.
+8. Click `config.tcoTicketSizeApplyXPath` (fallback `config.tcoApplyTemplateXPath` if absent), sleep.
 9. No price step (D7). The batch grid stays open, so the next UPC can search immediately.
 10. `applied++` / on any handled failure `skipped++`; mirror into
     `autoAddState.totalTemplates` / `totalTemplateSkipped`.
@@ -378,10 +388,10 @@ Keep the extension loadable from source at all times.
 - [x] Ticket size persists with the list (comment), survives reload, shows in the review modal.
 - [x] Missing/unknown size never aborts the run; it is reported and skipped.
 - [x] Stop works at every step; resume works after the deliberate reload.
-- [x] Settings expose the size→XPath map and the single-row select XPath; values persist.
+- [x] Settings expose the size→XPath map, the single-row select XPath, and the per-UPC apply button; values persist.
 - [x] No new permissions, no new runtime dependencies, no build step.
-- [ ] `manifest.json` bumped to **7.16**, README note updated, zip
-      `Barcode-Lists-7.16-upload.zip` produced the usual way.
+- [ ] `manifest.json` bumped to **7.17**, README note updated, zip
+      `Barcode-Lists-7.17-upload.zip` produced the usual way.
 
 ---
 
@@ -391,12 +401,12 @@ Keep the extension loadable from source at all times.
 |---|---|
 | `tco-utils.js` | comment parsing/merging, ticket-size normalisation, header lookup, default template map |
 | `popup.js` | ticket-size column import, review badge, TCO detection, `setBarcodeMeta`, config defaults + settings save/load, payload, pre-flight validation, `AUTO_TCO_TEMPLATE_PROGRESS` handling, check-digit rule |
-| `popup.html` | `tco-utils.js` script tag, `#tcoSelectRow` input, `#tcoTicketSizeTemplates` textarea, updated TCO hint |
-| `popup.css` | `.ticket-badge`, `.settings-textarea` |
+| `popup.html` | `tco-utils.js` script tag, `#tcoSelectRow` input, `#tcoTicketSizeApply` input, `#tcoTicketSizeTemplates` textarea, numbered step layout for every automation |
+| `popup.css` | `.ticket-badge`, `.settings-textarea`, settings step/section styles |
 | `content.js` | `openBatchAndPrepare()` refactor, `runTicketSizeTemplateLoop()`, `selectSignInBatch()`, `applyTemplateCard()`, new progress message + counters |
 | `AGENTS.md` | document the two TCO modes + comment format |
-| `README.md` | TCO section + 7.16 changelog |
-| `manifest.json` | version `7.16` |
+| `README.md` | TCO section + 7.17 changelog |
+| `manifest.json` | version `7.17` |
 | `test/tco-ticket-size.test.mjs` | Node built-in runner tests |
 
 Leave `background.js`, `supabase.js`, `manifest` permissions and sync logic untouched.

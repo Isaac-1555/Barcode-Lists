@@ -25,10 +25,10 @@ A Chrome Extension (Manifest V3) for retail and store employees to store, organi
 - When the active list (or selected lists) contain barcodes with "TCO Price" or "Ticket Size" comments, the blue sparkles button is replaced by a yellow broom-sparkles button
 - Creates the batch, names it after the list, then adds every barcode as a sign
 - **Legacy sheets (no `TICKET SIZE` column):** applies the "12up Managers' Special" template to all signs, then edits each sign: searches the barcode, opens the sign edit sheet, replaces the price field value with the TCO price from the barcode comment, saves, and returns to the batch list
-- **`TICKET SIZE` sheets:** applies one template per UPC instead. Each UPC is searched, selected, given the card mapped from its `TICKET SIZE` value (e.g. `9`, `r9`, `i9`, `12`), and the price pass is skipped
+- **`TICKET SIZE` sheets:** applies one template per UPC instead. Each UPC is searched, selected, change template is clicked, the card mapped from its `TICKET SIZE` value (e.g. `9`, `r9`, `i9`, `12`) is clicked directly, the apply button is clicked, and the price pass is skipped
 - Ticket sizes are stored as a second comment line (`Ticket Size: r9`), survive reload/sync, and show as a `Ticket r9` badge in the review modal
 - Unknown sizes and rows with a blank size never abort the run: they are reported and skipped
-- Every TCO XPath plus the size → template map is configurable in Settings
+- Every TCO XPath, the per-UPC apply button, and the size → template map is configurable in Settings, ordered and labelled by the click each one performs
 
 ### Category Organization
 - Create, rename, and delete categories (e.g., "Dairy", "Produce")
@@ -219,6 +219,12 @@ There is no build step. The extension loads directly from source.
 5. UPCs with 5 digits or fewer are skipped (never searched on the site) and listed in a closable **Skipped UPCs** dialog when the run ends, with a search button per UPC so it can be added by hand
 
 ## Changelog
+
+### 7.17
+- Ticket-size template cards moved to the new `div/div[1]` paths and are now clicked directly instead of via their `ppr-card-component` ancestor
+- Ticket-size batches click the per-UPC apply button (`cui-button[2]`) after picking the size card; legacy lists keep the modal-footer apply path
+- Stored size → card maps migrate from the old `div[2]` paths automatically; custom paths are preserved
+- Settings modal rebuilt as numbered, labelled steps grouped per automation (blue auto-add, batch setup, TCO shared, legacy, ticket size) so each XPath maps to the click it performs
 
 ### 7.16
 - TCO request sheets may add a `TICKET SIZE` column; each UPC gets the template card mapped from its size instead of one template for the whole batch
