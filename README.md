@@ -220,6 +220,13 @@ There is no build step. The extension loads directly from source.
 
 ## Changelog
 
+### 7.19
+- Ticket-size runs no longer reload the batch page: the reload is now only used for legacy batch-template runs, which removes the flaky resume step
+- When a resume does happen, the run waits for the batch page (search box) before starting the template and price passes
+- Every per-UPC step now waits for its element and retries once before skipping, instead of failing instantly on a slow page
+- Summary reports template skips and price skips separately, and shows a reason when nothing was applied
+- Uncaught automation errors are reported to the side panel instead of silently ending the run
+
 ### 7.18
 - Ticket-size lists now run a second per-UPC pass that sets the sale price in the sign edit view
 - Sale price fields vary by size: `1`/`4`/`9` → `#7079`, `12`/`i9` → `#7054`, `r1`/`r4`/`r9` → `#7098` plus `#7099`

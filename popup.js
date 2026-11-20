@@ -238,18 +238,27 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
   }
   if (msg.type === "AUTO_TCO_DONE") {
-    const skipped = msg.skipped || 0;
     const listCount = msg.batches || 1;
-    const summary = skipped > 0
-      ? `TCO done: ${msg.added}/${msg.total} across ${listCount} list(s) (${skipped} skipped)`
-      : `TCO done: ${msg.added}/${msg.total} across ${listCount} list(s)`;
+    const skipParts = [];
+    if (msg.templateSkipped) skipParts.push(`${msg.templateSkipped} template`);
+    if (msg.priceSkipped) skipParts.push(`${msg.priceSkipped} price`);
+    const skipText = skipParts.length
+      ? ` (${skipParts.join(" + ")} skipped)`
+      : (msg.skipped > 0 ? ` (${msg.skipped} skipped)` : "");
+    const summary = msg.reason
+      ? `TCO: ${msg.reason}`
+      : `TCO done: ${msg.added}/${msg.total} across ${listCount} list(s)${skipText}`;
     finishAutoAdd(summary);
-    if (msg.templates && msg.edited) {
-      showToast(`TCO templates applied: ${msg.templates} · prices set: ${msg.edited}`);
-    } else if (msg.templates) {
-      showToast(`TCO templates applied: ${msg.templates || 0}`);
-    } else {
-      showToast(`TCO prices set: ${msg.edited || 0}`);
+
+    if (msg.reason) {
+      showToast(`TCO: ${msg.reason}`);
+    } else if (msg.templates || msg.edited) {
+      const parts = [];
+      if (msg.templates) parts.push(`${msg.templates} template(s)`);
+      if (msg.edited) parts.push(`${msg.edited} price(s)`);
+      showToast(`TCO applied ${parts.join(" · ")}`);
+    } else if ((msg.total || 0) > 0) {
+      showToast("TCO: no templates or prices applied — check the batch page");
     }
     if (selectedBatches.length > 0) {
       selectedBatches = [];

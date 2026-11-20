@@ -35,8 +35,8 @@ calls, no new permissions, no build step.
 | Review modal | `showReviewModal()` / `addSelectedBarcodes()` | Shows `TCO 3.99` badge; on add writes `state.comments[barcode] = "TCO Price: 3.99"` (comment textarea, 250-char cap, synced to Supabase `comments`). |
 | TCO detection | `getTcoPrice()` + `isTcoList()` + `updateAutomationButtons()` | A list is a TCO list when **any** barcode has a `TCO Price:` comment → yellow broom button replaces the blue add button. |
 | Run start | `startTcoBatchAdd()` | `prepareRunBatches()` (skips UPCs ≤ 5 digits), attaches `b.prices = { upc: "3.99" }`, sends `AUTO_TCO_BATCH_START` with `{ batches, config }`. |
-| Runner | `runTcoBatches()` in `content.js` | Per batch: `doBatchSetup` (create batch, Add signs → From item library) → `runAutoAddLoop` (search + tick + add each UPC) → `openBatchAndSelectAll()` (open batch breadcrumb → persist resume state → `location.reload()`) → on resume: select-all → `applyTcoTemplate()` (fixed card) → `runTcoEditLoop()` (search each UPC → edit sign → set price → save → back to batch) → next batch. |
-| Resume | `setTcoResume()` / `resumeTcoIfPending()` | Batch-level resume after the deliberate `location.reload()`, 120 s TTL. |
+| Runner | `runTcoBatches()` in `content.js` | Per batch: `doBatchSetup` (create batch, Add signs → From item library) → `runAutoAddLoop` (search + tick + add each UPC) → `openBatchAndPrepare()`. Ticket-size batches open the batch breadcrumb and continue straight into the per-UPC passes. Legacy batches then persist resume state → `location.reload()` → on resume: wait for the batch page → select-all → `applyTcoTemplate()` (fixed card) → `runTcoEditLoop()` (search each UPC → edit sign → set price → save → back to batch) → next batch. |
+| Resume | `setTcoResume()` / `resumeTcoIfPending()` | Batch-level resume after the legacy deliberate `location.reload()`, 120 s TTL. The resumed run waits for the batch page (search box) for up to 3× the timeout before starting. |
 | Config | `DEFAULT_AUTO_ADD_CONFIG` + `#settingsModal` in `popup.html` + `saveSettings()` | All XPaths are editable, stored under `autoAddConfig` in `chrome.storage.local`. |
 
 Do not change the non-TICKET-SIZE path. It must behave bit-for-bit as today.
@@ -305,9 +305,11 @@ if (opened) {
 }
 ```
 
-Refactor `openBatchAndSelectAll()` → `openBatchAndPrepare(..., applyBatchTemplate)`:
+Refactor `openBatchAndSelectAll()` → `openBatchAndPrepare(..., applyBatchTemplate, refreshPage)`:
 
-- open breadcrumb / resume / reload dance unchanged (`setTcoResume` still batch-level);
+- open breadcrumb unchanged (`setTcoResume` still batch-level);
+- `refreshPage === true` (legacy only) → persist resume state and `location.reload()`;
+- `refreshPage === false` (ticket sizes) → no reload, no resume, continue on the live page;
 - `applyBatchTemplate === true` → today's select-all + `applyTcoTemplate()`;
 - `applyBatchTemplate === false` → no select-all, no template; return true so the per-UPC loop starts.
 
@@ -430,11 +432,12 @@ Keep the extension loadable from source at all times.
 - [x] New sheets produce one template application **per UPC**, chosen by `TICKET SIZE`.
 - [x] Ticket size persists with the list (comment), survives reload, shows in the review modal.
 - [x] Missing/unknown size never aborts the run; it is reported and skipped.
-- [x] Stop works at every step; resume works after the deliberate reload.
+- [x] Stop works at every step; resume works after the deliberate reload (legacy batches only — ticket-size batches no longer reload).
+- [x] The resumed run waits for the batch page and every per-UPC step waits + retries once before skipping.
 - [x] Settings expose the size→XPath map, the single-row select XPath, the per-UPC apply button, and the size→sale price field map; values persist.
 - [x] No new permissions, no new runtime dependencies, no build step.
-- [ ] `manifest.json` bumped to **7.18**, README note updated, zip
-      `Barcode-Lists-7.18-upload.zip` produced the usual way.
+- [ ] `manifest.json` bumped to **7.19**, README note updated, zip
+      `Barcode-Lists-7.19-upload.zip` produced the usual way.
 
 ---
 
@@ -447,9 +450,9 @@ Keep the extension loadable from source at all times.
 | `popup.html` | `tco-utils.js` script tag, `#tcoSelectRow`, `#tcoTicketSizeApply`, `#tcoTicketSizeTemplates`, `#tcoTicketSizePriceFields`, numbered step layout for every automation |
 | `popup.css` | `.ticket-badge`, `.settings-textarea`, settings step/section styles |
 | `content.js` | `openBatchAndPrepare()` refactor, `runTicketSizeTemplateLoop()`, `runTicketSizePriceLoop()`, `selectSignInBatch()`, `applyTemplateCard()`, progress messages + counters |
-| `manifest.json` | `tco-utils.js` in `content_scripts`, version `7.18` |
+| `manifest.json` | `tco-utils.js` in `content_scripts`, version `7.19` |
 | `AGENTS.md` | document the two TCO modes + comment format |
-| `README.md` | TCO section + 7.18 changelog |
+| `README.md` | TCO section + 7.19 changelog |
 | `test/tco-ticket-size.test.mjs` | Node built-in runner tests |
 
 Leave `background.js`, `supabase.js`, `manifest` permissions and sync logic untouched.

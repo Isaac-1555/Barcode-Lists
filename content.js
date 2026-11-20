@@ -90,6 +90,12 @@ function waitForElementClickable(xpath, timeoutMs) {
   });
 }
 
+async function waitForBatchPage(config) {
+  const timeout = Math.max((config.timeoutMs || 8000) * 3, 20000);
+  const input = await waitForElement(config.searchInputXPath, timeout);
+  return !!input;
+}
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -263,11 +269,26 @@ async function scrapeUpcRows(maxRows) {
 }
 
 function startAutoAddBatch(batches, config) {
-  runAutoAddBatches(batches, config);
+  runAutoAddBatches(batches, config).catch((err) => {
+    console.error("[BarcodeLists] auto-add failed", err);
+    autoAddState = null;
+    sendToExtension({
+      type: "AUTO_ADD_ERROR",
+      barcode: "-",
+      message: `Automation error: ${err && err.message ? err.message : err}`
+    });
+  });
 }
 
 function startTcoBatches(batches, config) {
-  runTcoBatches(batches, config);
+  runTcoBatches(batches, config).catch((err) => {
+    console.error("[BarcodeLists] TCO run failed", err);
+    sendToExtension({
+      type: "AUTO_ADD_ERROR",
+      barcode: "-",
+      message: `Automation error: ${err && err.message ? err.message : err}`
+    });
+  });
 }
 
 const TCO_RESUME_KEY = "tcoResume";
@@ -324,6 +345,15 @@ async function runTcoBatches(batches, config, resumeData) {
   batches.forEach(b => { grandTotal += b.barcodes.length; });
 
   try {
+    if (resumeData) {
+      sendToExtension({ type: "AUTO_STATUS", message: "Waiting for batch page..." });
+      if (!(await waitForBatchPage(config))) {
+        autoAddState.failReason = "Batch page did not load after refresh";
+        sendToExtension({ type: "AUTO_ADD_ERROR", barcode: "-", message: autoAddState.failReason });
+        return;
+      }
+    }
+
     for (let b = startIndex; b < batches.length; b++) {
       if (autoAddState.stopped) break;
       const batch = batches[b];
@@ -348,15 +378,23 @@ async function runTcoBatches(batches, config, resumeData) {
       let editSkipped = 0;
       if (!autoAddState.skipLoop && !autoAddState.stopped) {
         const hasTicketSizes = Object.keys(batch.ticketSizes || {}).length > 0;
-        const opened = await openBatchAndPrepare(config, batch, b, batches, resumedBatch, !hasTicketSizes);
+        const opened = await openBatchAndPrepare(config, batch, b, batches, resumedBatch, !hasTicketSizes, !hasTicketSizes);
         if (opened) {
           if (hasTicketSizes) {
             const templateResult = await runTicketSizeTemplateLoop(batch, config, b + 1, batches.length);
             const priceResult = await runTicketSizePriceLoop(batch, config, b + 1, batches.length);
             editSkipped = templateResult.skipped + priceResult.skipped;
+            const expected = Object.keys(batch.ticketSizes || {}).length;
+            if (expected > 0 && !templateResult.applied && !priceResult.edited && !autoAddState.failReason) {
+              autoAddState.failReason = "No templates or prices were applied";
+            }
           } else {
             const editResult = await runTcoEditLoop(batch, config, b + 1, batches.length);
             editSkipped = editResult.skipped;
+            const expectedPrices = Object.keys(batch.prices || {}).length;
+            if (expectedPrices > 0 && !editResult.edited && !autoAddState.failReason) {
+              autoAddState.failReason = "No prices were applied";
+            }
           }
         }
       }
@@ -381,14 +419,27 @@ async function runTcoBatches(batches, config, resumeData) {
     const edited = autoAddState ? (autoAddState.totalEdited || 0) : 0;
     const templates = autoAddState ? (autoAddState.totalTemplates || 0) : 0;
     const templateSkipped = autoAddState ? (autoAddState.totalTemplateSkipped || 0) : 0;
-    const skipped = autoAddState ? ((autoAddState.totalSkipped || 0) + (autoAddState.totalEditSkipped || 0) + templateSkipped) : 0;
+    const priceSkipped = autoAddState ? (autoAddState.totalEditSkipped || 0) : 0;
+    const reason = autoAddState ? (autoAddState.failReason || "") : "";
+    const skipped = autoAddState ? ((autoAddState.totalSkipped || 0) + priceSkipped + templateSkipped) : 0;
     autoAddState = null;
     if (wasReloading) return;
     clearTcoResume();
     if (stopped) {
       sendToExtension({ type: "AUTO_ADD_STOPPED" });
     } else {
-      sendToExtension({ type: "AUTO_TCO_DONE", added, edited, templates, skipped, total: grandTotal, batches: batches.length });
+      sendToExtension({
+        type: "AUTO_TCO_DONE",
+        added,
+        edited,
+        templates,
+        templateSkipped,
+        priceSkipped,
+        reason,
+        skipped,
+        total: grandTotal,
+        batches: batches.length
+      });
     }
   }
 }
@@ -509,7 +560,7 @@ async function doBatchSetup(config, batchName) {
   await sleep(config.delayMs);
 }
 
-async function openBatchAndPrepare(config, batch, batchIndex, batches, skipOpen, applyBatchTemplate) {
+async function openBatchAndPrepare(config, batch, batchIndex, batches, skipOpen, applyBatchTemplate, refreshPage = true) {
   if (!skipOpen) {
     sendToExtension({ type: "AUTO_STATUS", message: "Opening batch..." });
     const openEl = await waitForElementClickable(config.tcoOpenBatchXPath, config.timeoutMs);
@@ -522,24 +573,26 @@ async function openBatchAndPrepare(config, batch, batchIndex, batches, skipOpen,
     console.log("[BarcodeLists] opened the created batch");
     await sleep(config.delayMs);
 
-    sendToExtension({ type: "AUTO_STATUS", message: "Refreshing batch..." });
-    await setTcoResume({
-      batches,
-      config,
-      batchIndex,
-      phase: "afterOpen",
-      curAdded: autoAddState.curAdded || 0,
-      curSkipped: autoAddState.curSkipped || 0,
-      totalAdded: autoAddState.totalAdded || 0,
-      totalSkipped: autoAddState.totalSkipped || 0,
-      totalEdited: autoAddState.totalEdited || 0,
-      totalEditSkipped: autoAddState.totalEditSkipped || 0,
-      totalTemplates: autoAddState.totalTemplates || 0,
-      totalTemplateSkipped: autoAddState.totalTemplateSkipped || 0
-    });
-    autoAddState.reloading = true;
-    location.reload();
-    return false;
+    if (refreshPage) {
+      sendToExtension({ type: "AUTO_STATUS", message: "Refreshing batch..." });
+      await setTcoResume({
+        batches,
+        config,
+        batchIndex,
+        phase: "afterOpen",
+        curAdded: autoAddState.curAdded || 0,
+        curSkipped: autoAddState.curSkipped || 0,
+        totalAdded: autoAddState.totalAdded || 0,
+        totalSkipped: autoAddState.totalSkipped || 0,
+        totalEdited: autoAddState.totalEdited || 0,
+        totalEditSkipped: autoAddState.totalEditSkipped || 0,
+        totalTemplates: autoAddState.totalTemplates || 0,
+        totalTemplateSkipped: autoAddState.totalTemplateSkipped || 0
+      });
+      autoAddState.reloading = true;
+      location.reload();
+      return false;
+    }
   }
 
   if (applyBatchTemplate === false) {
@@ -607,8 +660,8 @@ async function goBackToBatchList(config) {
   }
 }
 
-async function selectSignInBatch(barcode, config) {
-  const inputEl = getByXPath(config.searchInputXPath);
+async function selectSignInBatch(barcode, config, attempt = 0) {
+  const inputEl = await waitForElement(config.searchInputXPath, config.timeoutMs);
   if (!inputEl) {
     sendToExtension({ type: "AUTO_ADD_ERROR", barcode, message: `Search box not found: ${barcode}` });
     return false;
@@ -617,7 +670,7 @@ async function selectSignInBatch(barcode, config) {
   setInputValue(inputEl, barcode);
   await sleep(config.delayMs);
 
-  const searchBtn = getByXPath(config.searchButtonXPath);
+  const searchBtn = await waitForElement(config.searchButtonXPath, config.timeoutMs);
   if (!searchBtn) {
     sendToExtension({ type: "AUTO_ADD_ERROR", barcode, message: `Search button not found: ${barcode}` });
     return false;
@@ -641,11 +694,18 @@ async function selectSignInBatch(barcode, config) {
     return true;
   }
 
+  if (attempt < 1) {
+    sendToExtension({ type: "AUTO_STATUS", message: `Sign not found for ${barcode}, retrying...` });
+    console.log("[BarcodeLists] sign not found, retrying:", barcode);
+    await sleep(config.delayMs);
+    return selectSignInBatch(barcode, config, attempt + 1);
+  }
+
   sendToExtension({ type: "AUTO_ADD_ERROR", barcode, message: `Sign not found for: ${barcode}` });
   return false;
 }
 
-async function applyTemplateCard(barcode, cardXPath, config) {
+async function applyTemplateCard(barcode, cardXPath, config, attempt = 0) {
   const changeTemplateBtn = await waitForElementClickable(config.tcoChangeTemplateXPath, config.timeoutMs);
   if (!changeTemplateBtn) {
     sendToExtension({ type: "AUTO_ADD_ERROR", barcode, message: "Change template button not found" });
@@ -657,6 +717,11 @@ async function applyTemplateCard(barcode, cardXPath, config) {
 
   const cardEl = await waitForElementClickable(cardXPath, config.timeoutMs);
   if (!cardEl) {
+    if (attempt < 1) {
+      sendToExtension({ type: "AUTO_STATUS", message: `Ticket size card not ready for ${barcode}, retrying...` });
+      console.log("[BarcodeLists] ticket size card not found, retrying:", barcode);
+      return applyTemplateCard(barcode, cardXPath, config, attempt + 1);
+    }
     sendToExtension({ type: "AUTO_ADD_ERROR", barcode, message: `Ticket size card not found for: ${barcode}` });
     return false;
   }
@@ -671,6 +736,10 @@ async function applyTemplateCard(barcode, cardXPath, config) {
     if (applyBtn) break;
   }
   if (!applyBtn) {
+    if (attempt < 1) {
+      sendToExtension({ type: "AUTO_STATUS", message: `Apply button not ready for ${barcode}, retrying...` });
+      return applyTemplateCard(barcode, cardXPath, config, attempt + 1);
+    }
     sendToExtension({ type: "AUTO_ADD_ERROR", barcode, message: `Apply ticket size button not found for: ${barcode}` });
     return false;
   }
@@ -780,7 +849,7 @@ async function runTicketSizePriceLoop(batch, config, batchIndex, batchCount) {
       batchCount
     });
 
-    const inputEl = getByXPath(config.searchInputXPath);
+    const inputEl = await waitForElement(config.searchInputXPath, config.timeoutMs);
     if (!inputEl) {
       sendToExtension({ type: "AUTO_ADD_ERROR", barcode, message: `Search box not found: ${barcode}` });
       skipped++;
@@ -791,7 +860,7 @@ async function runTicketSizePriceLoop(batch, config, batchIndex, batchCount) {
     setInputValue(inputEl, barcode);
     await sleep(config.delayMs);
 
-    const searchBtn = getByXPath(config.searchButtonXPath);
+    const searchBtn = await waitForElement(config.searchButtonXPath, config.timeoutMs);
     if (!searchBtn) {
       sendToExtension({ type: "AUTO_ADD_ERROR", barcode, message: `Search button not found: ${barcode}` });
       skipped++;
@@ -801,7 +870,12 @@ async function runTicketSizePriceLoop(batch, config, batchIndex, batchCount) {
     searchBtn.click();
     await sleep(config.delayMs);
 
-    const editLink = await waitForElementClickable(config.tcoEditSignXPath, config.timeoutMs);
+    let editLink = await waitForElementClickable(config.tcoEditSignXPath, config.timeoutMs);
+    if (!editLink) {
+      searchBtn.click();
+      await sleep(config.delayMs);
+      editLink = await waitForElementClickable(config.tcoEditSignXPath, config.timeoutMs);
+    }
     if (!editLink) {
       sendToExtension({ type: "AUTO_ADD_ERROR", barcode, message: `Sign not found for: ${barcode}` });
       skipped++;
@@ -884,7 +958,7 @@ async function runTcoEditLoop(batch, config, batchIndex, batchCount) {
       batchCount
     });
 
-    const inputEl = getByXPath(config.searchInputXPath);
+    const inputEl = await waitForElement(config.searchInputXPath, config.timeoutMs);
     if (!inputEl) {
       sendToExtension({ type: "AUTO_ADD_ERROR", barcode, message: `Search box not found: ${barcode}` });
       skipped++;
@@ -895,7 +969,7 @@ async function runTcoEditLoop(batch, config, batchIndex, batchCount) {
     setInputValue(inputEl, barcode);
     await sleep(config.delayMs);
 
-    const searchBtn = getByXPath(config.searchButtonXPath);
+    const searchBtn = await waitForElement(config.searchButtonXPath, config.timeoutMs);
     if (!searchBtn) {
       sendToExtension({ type: "AUTO_ADD_ERROR", barcode, message: `Search button not found: ${barcode}` });
       skipped++;
@@ -905,7 +979,12 @@ async function runTcoEditLoop(batch, config, batchIndex, batchCount) {
     searchBtn.click();
     await sleep(config.delayMs);
 
-    const editLink = await waitForElementClickable(config.tcoEditSignXPath, config.timeoutMs);
+    let editLink = await waitForElementClickable(config.tcoEditSignXPath, config.timeoutMs);
+    if (!editLink) {
+      searchBtn.click();
+      await sleep(config.delayMs);
+      editLink = await waitForElementClickable(config.tcoEditSignXPath, config.timeoutMs);
+    }
     if (!editLink) {
       sendToExtension({ type: "AUTO_ADD_ERROR", barcode, message: `Sign not found for: ${barcode}` });
       skipped++;
