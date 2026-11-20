@@ -19,10 +19,12 @@ const DEFAULT_AUTO_ADD_CONFIG = {
   tcoApplyTemplateXPath: '//*[@id="app_container"]/ppr-sign-grid/div/cui-modal/div/div[2]/div[1]/cui-modal-footer/cui-priv-block/div/cui-button[2]/span/button',
   tcoOpenBatchXPath: '//*[@id="cui-breadcrumb_1"]/a/cui-string/span',
   tcoSelectAllXPath: '//*[@id="SignView-select-all"]/span',
+  tcoSelectRowXPath: '//*[@id="ItemView-select-all"]/span',
   tcoEditSignXPath: '//*[@id="SignView-row-0-name"]/ppr-data-grid-viewsign-click/a',
   tcoPriceFieldXPath: '//*[@id="7054"]',
   tcoSaveButtonXPath: '//*[@id="app_container"]/ppr-sign-edit/div/div/ppr-single-sign-edit/div/div[1]/div[1]/div/div/div[1]/cui-button[2]/span/button',
   tcoBackToBatchXPath: '//*[@id="cui-breadcrumb_1"]/a/cui-string/span',
+  tcoTicketSizeTemplates: { ...TCOUtils.TICKET_SIZE_TEMPLATES },
   delayMs: 1500,
   timeoutMs: 8000
 };
@@ -224,6 +226,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       document.getElementById("runToastProgress").textContent = `Prices ${listCtx}${msg.batchName}: ${msg.index} / ${msg.total}`;
     }
   }
+  if (msg.type === "AUTO_TCO_TEMPLATE_PROGRESS") {
+    const listCtx = msg.batchCount > 1 ? `List ${msg.batchIndex}/${msg.batchCount} · ` : "";
+    const label = `Templates ${listCtx}${msg.batchName}: ${msg.index}/${msg.total} ${msg.barcode} (${msg.ticketSize})`;
+    updateAutoAddStatus(label);
+    if (!dontShowRunToast && !runToastSuppressed) {
+      showRunToast(msg.total);
+      document.getElementById("runToastProgress").textContent = label;
+    }
+  }
   if (msg.type === "AUTO_TCO_DONE") {
     const skipped = msg.skipped || 0;
     const listCount = msg.batches || 1;
@@ -231,7 +242,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       ? `TCO done: ${msg.added}/${msg.total} across ${listCount} list(s) (${skipped} skipped)`
       : `TCO done: ${msg.added}/${msg.total} across ${listCount} list(s)`;
     finishAutoAdd(summary);
-    showToast(`TCO prices set: ${msg.edited || 0}`);
+    if (msg.templates) {
+      showToast(`TCO templates applied: ${msg.templates || 0}`);
+    } else {
+      showToast(`TCO prices set: ${msg.edited || 0}`);
+    }
     if (selectedBatches.length > 0) {
       selectedBatches = [];
       renderCategories();
@@ -1284,6 +1299,7 @@ async function processExcelFile(file) {
     const tableName = file.name.replace(/\.(xlsx|xls)$/i, "");
     const barcodes = [];
     const prices = {};
+    const ticketSizes = {};
 
     for (const sheetName of workbook.SheetNames) {
       const sheet = workbook.Sheets[sheetName];
@@ -1293,6 +1309,7 @@ async function processExcelFile(file) {
       if (!upcCol) continue;
 
       const priceCol = findPriceColumn(workbook, sheetName);
+      const ticketSizeCol = TCOUtils.findTicketSizeColumn(workbook, sheetName, XLSX.utils);
 
       const range = XLSX.utils.decode_range(sheet["!ref"]);
       for (let row = upcCol.headerRow + 1; row <= range.e.r; row++) {
@@ -1313,6 +1330,15 @@ async function processExcelFile(file) {
                 }
               }
             }
+            if (ticketSizeCol && ticketSizes[cleaned] === undefined) {
+              const sizeCell = sheet[XLSX.utils.encode_cell({ r: row, c: ticketSizeCol.col })];
+              if (sizeCell && sizeCell.v !== undefined && sizeCell.v !== null && sizeCell.v !== "") {
+                const sizeVal = TCOUtils.normaliseTicketSize(sizeCell.v);
+                if (sizeVal) {
+                  ticketSizes[cleaned] = sizeVal;
+                }
+              }
+            }
           }
         }
       }
@@ -1328,7 +1354,8 @@ async function processExcelFile(file) {
     pendingExtraction = [{
       tableName: tableName,
       barcodes: uniqueBarcodes,
-      prices: prices
+      prices: prices,
+      ticketSizes: ticketSizes
     }];
     showReviewModal();
 
@@ -1343,7 +1370,7 @@ function showReviewModal() {
   const content = document.getElementById("reviewContent");
   const removeCheckDigitToggle = document.getElementById("removeCheckDigitToggle");
   content.innerHTML = "";
-  removeCheckDigitToggle.checked = true;
+  removeCheckDigitToggle.checked = false;
 
   selectedForExtraction = [];
 
@@ -1373,7 +1400,8 @@ function showReviewModal() {
     group.barcodes.forEach((barcode, barcodeIndex) => {
       const index = selectedForExtraction.length;
       const price = group.prices ? group.prices[barcode] : undefined;
-      selectedForExtraction.push({ selected: true, groupIndex, barcode, tableName: group.tableName, price });
+      const ticketSize = group.ticketSizes ? group.ticketSizes[barcode] : undefined;
+      selectedForExtraction.push({ selected: true, groupIndex, barcode, tableName: group.tableName, price, ticketSize });
 
       const existingCategories = Object.values(state.categories);
       const isDuplicate = existingCategories.some(cat => cat.includes(barcode));
@@ -1403,6 +1431,13 @@ function showReviewModal() {
         priceBadge.className = "price-badge";
         priceBadge.textContent = `TCO ${price}`;
         itemDiv.appendChild(priceBadge);
+      }
+
+      if (ticketSize) {
+        const ticketBadge = document.createElement("span");
+        ticketBadge.className = "ticket-badge";
+        ticketBadge.textContent = `Ticket ${ticketSize}`;
+        itemDiv.appendChild(ticketBadge);
       }
 
       if (isDuplicate || isInCurrentCategory) {
@@ -1462,17 +1497,31 @@ function selectAllItems(select) {
   });
 }
 
+function adjustBarcodeForAdd(barcode, removeCheckDigit) {
+  const values = String(barcode);
+  if (values.length === 12 || (removeCheckDigit && values.length > 1)) {
+    return values.slice(0, -1);
+  }
+  return values;
+}
+
 function addSelectedBarcodes() {
   const removeCheckDigit = document.getElementById("removeCheckDigitToggle")?.checked || false;
   const toAdd = [];
   const categoriesToCreate = [];
 
+  if (!state.comments) {
+    state.comments = {};
+  }
+
   selectedForExtraction.forEach((item) => {
     if (!item.selected) return;
 
-    let barcode = item.barcode;
-    if (removeCheckDigit && barcode.length > 1) {
-      barcode = barcode.slice(0, -1);
+    const barcode = adjustBarcodeForAdd(item.barcode, removeCheckDigit);
+    if (!barcode) return;
+
+    if (item.price || item.ticketSize) {
+      setBarcodeMeta(barcode, { price: item.price, ticketSize: item.ticketSize });
     }
 
     const existingInCategory = state.categories[state.active]?.includes(barcode);
@@ -1481,24 +1530,6 @@ function addSelectedBarcodes() {
     const existingAnywhere = Object.values(state.categories).some(cat => cat.includes(barcode));
     if (!existingAnywhere) {
       toAdd.push({ ...item, barcode });
-    }
-  });
-
-  selectedForExtraction.forEach((item) => {
-    if (!item.selected || !item.price) return;
-
-    let barcode = item.barcode;
-    if (removeCheckDigit && barcode.length > 1) {
-      barcode = barcode.slice(0, -1);
-    }
-
-    if (!state.comments) {
-      state.comments = {};
-    }
-    const comment = `TCO Price: ${item.price}`;
-    state.comments[barcode] = comment;
-    if (isOnlineMode && session) {
-      saveComment(session.storeId, barcode, comment).catch(console.error);
     }
   });
 
@@ -1568,10 +1599,15 @@ function showSettingsModal() {
   document.getElementById("tcoApplyTemplate").value = autoAddConfig.tcoApplyTemplateXPath || "";
   document.getElementById("tcoOpenBatch").value = autoAddConfig.tcoOpenBatchXPath || "";
   document.getElementById("tcoSelectAll").value = autoAddConfig.tcoSelectAllXPath || "";
+  document.getElementById("tcoSelectRow").value = autoAddConfig.tcoSelectRowXPath || "";
   document.getElementById("tcoEditSign").value = autoAddConfig.tcoEditSignXPath || "";
   document.getElementById("tcoPriceField").value = autoAddConfig.tcoPriceFieldXPath || "";
   document.getElementById("tcoSaveButton").value = autoAddConfig.tcoSaveButtonXPath || "";
   document.getElementById("tcoBackToBatch").value = autoAddConfig.tcoBackToBatchXPath || "";
+  const templateMap = autoAddConfig.tcoTicketSizeTemplates || {};
+  document.getElementById("tcoTicketSizeTemplates").value = Object.keys(templateMap)
+    .map((size) => `${size}=${templateMap[size]}`)
+    .join("\n");
   document.getElementById("autoAddDelay").value = autoAddConfig.delayMs || "";
   document.getElementById("autoAddTimeout").value = autoAddConfig.timeoutMs || "";
 
@@ -1580,6 +1616,22 @@ function showSettingsModal() {
 
 function closeSettingsModal() {
   document.getElementById("settingsModal").style.display = "none";
+}
+
+function parseTicketSizeTemplates(text) {
+  const map = {};
+  String(text || "").split(/\r?\n/).forEach((line) => {
+    const trimmed = line.trim();
+    const separator = trimmed.indexOf("=");
+    if (separator <= 0) return;
+
+    const size = trimmed.slice(0, separator).trim().toLowerCase();
+    const xpath = trimmed.slice(separator + 1).trim();
+    if (size && xpath) {
+      map[size] = xpath;
+    }
+  });
+  return map;
 }
 
 async function saveSettings() {
@@ -1599,10 +1651,12 @@ async function saveSettings() {
     tcoApplyTemplateXPath: document.getElementById("tcoApplyTemplate").value.trim(),
     tcoOpenBatchXPath: document.getElementById("tcoOpenBatch").value.trim(),
     tcoSelectAllXPath: document.getElementById("tcoSelectAll").value.trim(),
+    tcoSelectRowXPath: document.getElementById("tcoSelectRow").value.trim(),
     tcoEditSignXPath: document.getElementById("tcoEditSign").value.trim(),
     tcoPriceFieldXPath: document.getElementById("tcoPriceField").value.trim(),
     tcoSaveButtonXPath: document.getElementById("tcoSaveButton").value.trim(),
     tcoBackToBatchXPath: document.getElementById("tcoBackToBatch").value.trim(),
+    tcoTicketSizeTemplates: parseTicketSizeTemplates(document.getElementById("tcoTicketSizeTemplates").value),
     delayMs: parseInt(document.getElementById("autoAddDelay").value) || 1500,
     timeoutMs: parseInt(document.getElementById("autoAddTimeout").value) || 8000
   };
@@ -1828,7 +1882,7 @@ function renderSkippedCodes() {
   });
 }
 
-function getMissingXpaths(includeTco) {
+function getMissingXpaths(includeTco, hasTicketSizes) {
   const missing = [];
   if (!autoAddConfig.batchCreateButtonXPath) missing.push("create batch");
   if (!autoAddConfig.batchNameInputXPath) missing.push("batch name box");
@@ -1850,6 +1904,11 @@ function getMissingXpaths(includeTco) {
     if (!autoAddConfig.tcoPriceFieldXPath) missing.push("price field");
     if (!autoAddConfig.tcoSaveButtonXPath) missing.push("save button");
     if (!autoAddConfig.tcoBackToBatchXPath) missing.push("back to batch");
+    if (hasTicketSizes) {
+      const templates = autoAddConfig.tcoTicketSizeTemplates || {};
+      if (!Object.keys(templates).length) missing.push("ticket size templates");
+      if (!autoAddConfig.tcoSelectRowXPath) missing.push("select sign row");
+    }
   }
   return missing;
 }
@@ -1908,20 +1967,42 @@ async function startBatchAdd() {
   }, batches);
 }
 
-const TCO_COMMENT_RE = /^tco\s*price:\s*/i;
-
 function getTcoPrice(barcode) {
   const comment = state.comments ? state.comments[barcode] : null;
-  if (!comment) return null;
-  const trimmed = String(comment).trim();
-  if (!TCO_COMMENT_RE.test(trimmed)) return null;
-  const price = trimmed.replace(TCO_COMMENT_RE, "").trim();
-  return price || null;
+  return TCOUtils.readCommentMeta(comment).price;
+}
+
+function getTicketSize(barcode) {
+  const comment = state.comments ? state.comments[barcode] : null;
+  return TCOUtils.readCommentMeta(comment).ticketSize;
+}
+
+function setBarcodeMeta(barcode, patch) {
+  const comment = TCOUtils.mergeCommentMeta(state.comments ? state.comments[barcode] : null, patch);
+  const changed = comment !== ((state.comments && state.comments[barcode]) || "");
+
+  if (!state.comments) {
+    state.comments = {};
+  }
+
+  if (comment) {
+    state.comments[barcode] = comment;
+  } else {
+    delete state.comments[barcode];
+  }
+
+  if (!isOnlineMode || !session) return;
+
+  if (comment) {
+    saveComment(session.storeId, barcode, comment).catch(console.error);
+  } else if (changed) {
+    deleteComment(session.storeId, barcode).catch(console.error);
+  }
 }
 
 function isTcoList(name) {
   const barcodes = state.categories[name] || [];
-  return barcodes.some(b => getTcoPrice(b));
+  return barcodes.some(b => getTcoPrice(b) || getTicketSize(b));
 }
 
 function updateAutomationButtons() {
@@ -1946,13 +2027,32 @@ async function startTcoBatchAdd() {
 
   batches.forEach(b => {
     b.prices = {};
+    b.ticketSizes = {};
     b.barcodes.forEach(code => {
       const price = getTcoPrice(code);
+      const size = getTicketSize(code);
       if (price) b.prices[code] = price;
+      if (size) b.ticketSizes[code] = size;
     });
   });
 
-  const missing = getMissingXpaths(true);
+  const hasTicketSizes = batches.some(b => Object.keys(b.ticketSizes || {}).length > 0);
+
+  if (hasTicketSizes) {
+    const templates = autoAddConfig.tcoTicketSizeTemplates || {};
+    const unknownSizes = new Set();
+    batches.forEach(b => {
+      Object.values(b.ticketSizes || {}).forEach(size => {
+        if (!templates[size]) unknownSizes.add(size);
+      });
+    });
+    if (unknownSizes.size > 0) {
+      showToast(`No template for ticket size(s): ${[...unknownSizes].join(", ")}`);
+      return;
+    }
+  }
+
+  const missing = getMissingXpaths(true, hasTicketSizes);
   if (missing.length > 0) {
     showToast("Missing XPath: " + missing.join(", ") + ". Check Settings");
     return;
@@ -1960,7 +2060,7 @@ async function startTcoBatchAdd() {
 
   await launchAutomation({
     type: "AUTO_TCO_BATCH_START",
-    batches: batches.map(b => ({ name: b.name, barcodes: b.barcodes, prices: b.prices })),
+    batches: batches.map(b => ({ name: b.name, barcodes: b.barcodes, prices: b.prices, ticketSizes: b.ticketSizes })),
     config: autoAddConfig
   }, batches);
 }

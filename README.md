@@ -22,11 +22,13 @@ A Chrome Extension (Manifest V3) for retail and store employees to store, organi
 - Every skipped UPC gets a search button so it can be looked up and added by hand
 
 ### TCO Automation (Yellow Button)
-- When the active list (or selected lists) contain barcodes with "TCO Price" comments, the blue sparkles button is replaced by a yellow broom-sparkles button
-- Creates the batch, names it after the list, applies the "12up Managers' Special" template, then adds every barcode as a sign
-- After adding, it reopens the batch and edits each sign: searches the barcode, opens the sign edit sheet, replaces the price field value with the TCO price from the barcode comment, saves, and returns to the batch list
-- Barcodes without a TCO comment are added to the batch but skipped in the price-edit pass (counted as skipped)
-- All eight TCO-specific XPath selectors (change template, template card, apply template, open batch, edit sign, price field, save button, back to batch) are configurable in Settings
+- When the active list (or selected lists) contain barcodes with "TCO Price" or "Ticket Size" comments, the blue sparkles button is replaced by a yellow broom-sparkles button
+- Creates the batch, names it after the list, then adds every barcode as a sign
+- **Legacy sheets (no `TICKET SIZE` column):** applies the "12up Managers' Special" template to all signs, then edits each sign: searches the barcode, opens the sign edit sheet, replaces the price field value with the TCO price from the barcode comment, saves, and returns to the batch list
+- **`TICKET SIZE` sheets:** applies one template per UPC instead. Each UPC is searched, selected, given the card mapped from its `TICKET SIZE` value (e.g. `9`, `r9`, `i9`, `12`), and the price pass is skipped
+- Ticket sizes are stored as a second comment line (`Ticket Size: r9`), survive reload/sync, and show as a `Ticket r9` badge in the review modal
+- Unknown sizes and rows with a blank size never abort the run: they are reported and skipped
+- Every TCO XPath plus the size → template map is configurable in Settings
 
 ### Category Organization
 - Create, rename, and delete categories (e.g., "Dairy", "Produce")
@@ -217,6 +219,14 @@ There is no build step. The extension loads directly from source.
 5. UPCs with 5 digits or fewer are skipped (never searched on the site) and listed in a closable **Skipped UPCs** dialog when the run ends, with a search button per UPC so it can be added by hand
 
 ## Changelog
+
+### 7.16
+- TCO request sheets may add a `TICKET SIZE` column; each UPC gets the template card mapped from its size instead of one template for the whole batch
+- Sizes are stored as a second comment line (`Ticket Size: r9`) so they survive reload and sync; review modal shows a `Ticket r9` badge
+- TCO sheets with a `TICKET SIZE` column skip the per-sign price pass; legacy sheets keep the existing select-all + price flow unchanged
+- Unknown or blank sizes are reported and skipped without aborting the run
+- Settings gains the size → card XPath map and the single-sign select XPath
+- Excel import no longer strips the last digit by default; only 12-digit UPCs have the check digit removed automatically
 
 ### 7.15
 - UPCs with 5 digits or fewer are skipped instead of being searched and added on the site

@@ -113,7 +113,7 @@
       </div>
       <div class="review-toggle-row">
         <label class="review-toggle">
-          <input type="checkbox" id="removeCheckDigitToggle" checked />
+          <input type="checkbox" id="removeCheckDigitToggle" />
           <span>Remove last digit (check digit)</span>
         </label>
       </div>
@@ -205,11 +205,13 @@
         <input type="text" id="tcoApplyTemplate" placeholder="Apply template button XPath" class="settings-input" />
         <input type="text" id="tcoOpenBatch" placeholder="Open created batch XPath (breadcrumb)" class="settings-input" />
         <input type="text" id="tcoSelectAll" placeholder="Select all signs in batch XPath" class="settings-input" />
+        <input type="text" id="tcoSelectRow" placeholder="Select searched sign XPath (item grid checkbox)" class="settings-input" />
         <input type="text" id="tcoEditSign" placeholder="Edit sign link XPath (search result row)" class="settings-input" />
         <input type="text" id="tcoPriceField" placeholder="TCO price field XPath (sign edit)" class="settings-input" />
         <input type="text" id="tcoSaveButton" placeholder="Save button XPath (sign edit)" class="settings-input" />
         <input type="text" id="tcoBackToBatch" placeholder="Back to batch list XPath (breadcrumb)" class="settings-input" />
-        <p class="settings-hint">Yellow button runs when the selected list has barcodes with "TCO Price" comments. Adds every barcode exactly like the blue button (create batch, Add signs, From item library), then opens the created batch, refreshes the page so all barcodes load, selects all signs, applies the template, and finally sets each sign's price from the barcode comment.</p>
+        <textarea id="tcoTicketSizeTemplates" rows="4" placeholder="TICKET SIZE templates, one size=card XPath per line:&#10;9=//*[@id=&quot;container&quot;]/div[23]/ppr-card-component/div/div[2]/div/p&#10;r9=//*[@id=&quot;container&quot;]/div[22]/ppr-card-component/div/div[2]/div/p" class="settings-input settings-textarea"></textarea>
+        <p class="settings-hint">Yellow button runs when the selected list has barcodes with "TCO Price" or "Ticket Size" comments. Adds every barcode exactly like the blue button (create batch, Add signs, From item library). Lists without ticket sizes then open the created batch, refresh the page so all barcodes load, select all signs, apply one template, and set each price. Lists with ticket sizes apply one template per UPC instead (size map above) and skip the price pass; rows with a blank ticket size are left with the default template.</p>
       </div>
       <div class="modal-footer">
         <button id="saveSettingsBtn" class="add-btn">Save</button>
@@ -221,6 +223,7 @@
   <input type="file" id="fileInput" accept=".xlsx,.xls" style="display: none;" />
 
   <script src="xlsx.full.min.js"></script>
+  <script src="tco-utils.js"></script>
   <script src="supabase.js"></script>
   <script src="popup.js"></script>
 </body>

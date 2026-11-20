@@ -26,12 +26,12 @@ Built for Calgary Co-op FMC department staff — but useful anywhere barcodes ha
 
 - Drop in an `.xlsx` or `.xls` file — the **UPC column is found automatically**, even when it isn't the first sheet
 - **Review before you commit**: every extracted code is listed with duplicate flags, and the optional check-digit strip removes the last digit
-- **TCO prices** found in the sheet are saved as barcode comments, ready for the pricing workflow
+- **TCO prices and ticket sizes** found in the sheet are saved as barcode comments, ready for the pricing workflow
 
 ### Stop retyping twelve-digit numbers
 
 - **Batch entry** creates a batch named after your list, opens Add Signs → Item Library, then types each barcode, searches it, ticks the result, and adds it — one at a time, with live progress
-- **Template + TCO workflow** applies your sign template to the finished batch and sets each sign's price from the barcode's comment
+- **Template + TCO workflow** applies one sign template per UPC from the sheet's ticket size (or a single template for the whole batch), and sets each sign's price from the barcode's comment
 - **Scrape UPCs** straight off the page you're on — consecutive UPC rows are pulled into the open list and stop automatically at the last row
 - **Short codes are held back** — UPCs with 5 digits or fewer are never searched on the site; they come back in a "Skipped UPCs" dialog, each with a one-click search so you can add it by hand
 - **Adjustable delay** so slower pages always finish loading, plus a stop button if you need to halt mid-run
